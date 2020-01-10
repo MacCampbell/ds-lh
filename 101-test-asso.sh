@@ -31,5 +31,5 @@ module load benchmarks
 
 # The main job executable to run: note the use of srun before it
 # Using $HOME for better practice
-srun $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/sub.bamlist -yBin $HOME/ds-lh/phenos/sub.phenos -r $HOME/ds-lh/genome/smelt-genome.fasta -minMapQ 30 -minQ 20 -minInd 27 -doAsso 1 -GL 1 -out $HOME/ds-lh/outputs/100/sub -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 
+srun $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/sub.bamlist -yBin $HOME/ds-lh/phenos/sub.phenos -minMapQ 30 -minQ 20 -minInd 27 -doAsso 1 -GL 1 -out $HOME/ds-lh/outputs/100/sub -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 
 
