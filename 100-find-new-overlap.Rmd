@@ -36,11 +36,19 @@ meta %>% select(Phenotype) %>% group_by(Phenotype) %>% summarize(Count=n())
 
 ## Wow! Those are some sample sizes
 
+But, we don't have all those files. So, I'll filter for what *.bams I found.
+```{r, warning=FALSE, message=FALSE}
+mybams<-read_tsv("bamlists/mybams.txt", col_names=FALSE) %>% mutate(File=gsub(".sort-n.fixmate-m.sort.markdup-r.bam","",X1))
+
+meta2 <- meta %>% filter(`Sequence File Name` %in% mybams$File)
+meta2 %>% select(Phenotype) %>% group_by(Phenotype) %>% summarize(Count=n())
+```
+
 I'll generate a test data set of 30 inds.
 
 ```{r, warning=FALSE, message=FALSE}
-fwr<-meta %>% filter(Phenotype=="FWR") %>% sample_n(30)
-mig<-meta %>% filter(Phenotype=="MIG") %>% sample_n(30)
+fwr<-meta2 %>% filter(Phenotype=="FWR") %>% sample_n(30)
+mig<-meta2 %>% filter(Phenotype=="MIG") %>% sample_n(30)
 sub<-rbind(fwr,mig)
 ```
 

@@ -21,3 +21,4 @@ There are several.
 Ht20-6_2012_F01.sort-n.fixmate-m.sort.markdup-r.bam
 Ht20-3_2012_C01.sort-n.fixmate-m.sort.markdup-r.bam
 Ht19-7_2012_G01.sort-n.fixmate-m.sort.markdup-r.bam
+I'm going back to redo the bamlist based on the files I have.
