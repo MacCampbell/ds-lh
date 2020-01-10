@@ -8,4 +8,7 @@
 /genome/
 /outputs/
 *.html
+*.out
+*.err
+*.output
 
