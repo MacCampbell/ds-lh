@@ -4,7 +4,7 @@
 # This script is run some test associations on ds lh data.
 
 # Name of the job 
-#SBATCH -J doAsso
+#SBATCH -J doAsso-full
 
 #Email myself
 #SBATCH --mail-user=maccampbell@ucdavis.edu
@@ -31,9 +31,7 @@ module load benchmarks
 
 # The main job executable to run: note the use of srun before it
 # Using $HOME for better practice
-srun $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/sub.bamlist -yBin $HOME/ds-lh/phenos/sub.phenos -minMapQ 30 -minQ 20 -minInd 27 -doAsso 1 -GL 1 \
--out $HOME/ds-lh/outputs/100/sub -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+srun $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/full.bamlist -yBin $HOME/ds-lh/phenos/full.phenos -minMapQ 30 -minQ 20 -minInd 231 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/200/full -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta 
-
-
 

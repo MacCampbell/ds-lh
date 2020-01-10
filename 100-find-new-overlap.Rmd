@@ -85,3 +85,18 @@ angsd -yBin phenos/sub.phenos -r genome/smelt-genome.fasta -minMapQ 30 -minQ 20 
 
 ```
 
+## Full association input files for later
+```{r, warning=FALSE, message=FALSE}
+fullfwr<-meta2 %>% filter(Phenotype=="FWR") 
+fullmig<-meta2 %>% filter(Phenotype=="MIG") 
+full<-rbind(fullfwr,fullmig)
+
+bams<-select(full, `Sequence File Name`) %>% mutate(Path=paste0("bams/",`Sequence File Name`,".sort-n.fixmate-m.sort.markdup-r.bam")) %>% select(Path)
+write_tsv(bams, path = "bamlists/full.bamlist", col_names = FALSE)
+
+phenos<-select(full,Phenotype)
+phenos$Phenotype<-gsub("FWR",0,phenos$Phenotype)
+phenos$Phenotype<-gsub("MIG",1,phenos$Phenotype)
+write_tsv(phenos, path = "phenos/full.phenos", col_names=FALSE)
+```
+

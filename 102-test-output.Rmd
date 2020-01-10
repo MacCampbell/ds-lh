@@ -1,0 +1,34 @@
+---
+title: "103-test-output"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# What does our test data set show?
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+data<-read_tsv(file="outputs/100/sub.lrt0.gz")
+
+#Filtering like Eric A. did previously
+data <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p > 2)
+
+#Check for any significant values
+data %>% filter(log10p > 5)
+```
+
+```{r, warning=FALSE,message=FALSE}
+
+ggplot(data)+geom_point(aes(x=Position, y=log10p, color=log10p), alpha=0.75, cex=0.7)+
+  facet_wrap(~ Chromosome, ncol=7, scales="free_x")+
+  scale_color_gradient(low="gray", high="skyblue")+
+  theme_bw()+
+  theme(axis.text.x= element_text(angle=45,hjust=1))+
+  theme(panel.grid = element_blank())
+
+ggsave("outputs/100/test-asso.pdf", height=72, limitsize = FALSE)
+```
