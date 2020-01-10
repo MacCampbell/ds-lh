@@ -17,4 +17,7 @@ __3__ /outputs/ Are meant to have outputs for files in series 1xx, 2xx and so on
 My original subset didn't line up 1:1. For example:
 maccamp\@farm:~/ds-lh$ find /group/millermrgrp2/shannon/projects/DS_history/data/ -name Ht20-6_2012_F01.sort-n.fixmate-m.sort.markdup-r.bam
 
-There is 1 missing file out of 60 so I deleted it from the bamlist.
+There are several.
+Ht20-6_2012_F01.sort-n.fixmate-m.sort.markdup-r.bam
+Ht20-3_2012_C01.sort-n.fixmate-m.sort.markdup-r.bam
+Ht19-7_2012_G01.sort-n.fixmate-m.sort.markdup-r.bam
