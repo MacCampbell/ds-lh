@@ -1,0 +1,79 @@
+---
+title: "100-find-new-overlap"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## File of categorized fish
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+data<-read_csv("metadata/lhp_fishids-uniq.csv")
+
+newdat<-read_csv("metadata/fishlist-received01092020.csv") %>% unique() %>% rename(Sample_ID=fishid) %>% rename(Phenotype=`supervised assignments`)
+
+combined<-left_join(newdat, data) 
+combined$Sample_ID<-gsub("_","-",combined$Sample_ID)
+combined
+```
+
+Based on looking at "combined" we have fish from the Hobbs et al. paper and some disagreements in classifications.
+
+## What to compare?
+FWR to MIG looks would be sensible. Let's get the fish we want together.
+
+```{r, warning=FALSE, message=FALSE}
+
+seqs<-read_csv("metadata/Field Ids.csv") %>% rename(Sample_ID=`Field ID`)
+
+meta<-left_join(seqs,combined) %>% filter(Phenotype %in% c("FWR","MIG"))
+
+meta %>% select(Phenotype) %>% group_by(Phenotype) %>% summarize(Count=n())
+```
+
+## Wow! Those are some sample sizes
+
+I'll generate a test data set of 30 inds.
+
+```{r, warning=FALSE, message=FALSE}
+fwr<-meta %>% filter(Phenotype=="FWR") %>% sample_n(30)
+mig<-meta %>% filter(Phenotype=="MIG") %>% sample_n(30)
+sub<-rbind(fwr,mig)
+```
+
+Then I'll create a bamlist and a phenotype file (0 being controls and 1 being cases)
+
+```{r, warning=FALSE, message=FALSE}
+bams<-select(sub, `Sequence File Name`) %>% mutate(Path=paste0("bams/",`Sequence File Name`,".sort-n.fixmate-m.sort.markdup-r.bam")) %>% select(Path)
+write_tsv(bams, path = "bamlists/sub.bamlist", col_names = FALSE)
+
+phenos<-select(sub,Phenotype)
+phenos$Phenotype<-gsub("FWR",0,phenos$Phenotype)
+phenos$Phenotype<-gsub("MIG",1,phenos$Phenotype)
+write_tsv(phenos, path = "phenos/sub.phenos", col_names=FALSE)
+
+```
+
+## Angsd-y assocation test
+
+Previously, I had done this by parallelizing the chromos.
+
+```{sh, eval=FALSE}
+while read chrom; do
+echo "angsd -yBin ./outputs/401/binaryPhenos.txt -r $chrom -minMapQ 30 -minQ 20 -minInd 12 -doAsso 1 -GL 1 -out ./outputs/401/$bamlist/$chrom -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 -bam ./bamlists/$bamlist.bamlist -P $threads" >> temp.txt
+done <./processed_data/chromos.txt
+
+parallel -j $parallel < temp.txt
+```
+
+I think a command like this would be fine (will update threads as appropriate)
+
+```{sh, eval=FALSE}
+
+angsd -yBin phenos/sub.phenos -r genome/smelt-genome.fasta -minMapQ 30 -minQ 20 -minInd 27 -doAsso 1 -GL 1 -out outputs/200/sub -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 -bam bamlist/sub.bamlist -P $threads
+
+```
+
