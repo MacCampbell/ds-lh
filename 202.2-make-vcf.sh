@@ -32,7 +32,7 @@ module load benchmarks
 # The main job executable to run: note the use of srun before it
 # Using $HOME for better practice
 
-$HOME/angsd/angsd -P 24 -b $HOME/ds-lh/bamlists/partial.bamlist -minInd 196  -out $HOME/ds-lh/outputs/200/partial-vcf \
+srun $HOME/angsd/angsd -P 24 -b $HOME/ds-lh/bamlists/partial.bamlist -minInd 196  -out $HOME/ds-lh/outputs/200/partial-vcf \
 -minMaf 0.05 -minMapQ 30 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 \
 -SNP_pval 1e-6 -doGeno 4 -doPost 1 -postCutoff 0.95 -doVcf 1 
 
