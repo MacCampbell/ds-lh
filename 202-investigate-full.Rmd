@@ -66,15 +66,32 @@ phenos$Phenotype<-gsub("MIG",1,phenos$Phenotype)
 write_tsv(phenos, path = "phenos/partial.phenos", col_names=FALSE)
 ```
 
-Running 202.1-partial-asso.sh on cluster.
+Running 202.1-partial-asso.sh on cluster. Did we get any hits?    
+```{r, warning=FALSE, message=FALSE}
+data<-read_tsv(file="outputs/200/partial.lrt0.gz")
 
+#Converting to log10p
+data <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p > 2)
+
+#Check for any significant values
+data %>% filter(log10p > 5)
+```
 
 
 ## Part 2
 
-It seems to me that there may be some extremes in the data.  I'm curious how fish plot on a PCA coloring on migratory phenotype and what the loadings are. I will make a DAPC plot of the two phenotypes as well and see what the extremes are composed of.   I'll make a *.vcf so I can also prune it later for linked SNPs.   
+There are other options to association tests. First off, I will make a DAPC plot of the two phenotypes and examine the loadings. I can also look a PCA to see some things about the data.   I'll make a *.vcf so I can also prune it later for linked SNPs.   
 
-Runing 202.2-make-vch.sh on cluster. Seg fault again. Switchiing to making text plink files to convert to .vcf.
+Runing 202.2-make-vch.sh on cluster. Seg fault again. Switching to making text plink files to convert to .vcf. We can recode and prune linked SNPs like so:
+
+```{sh, eval=FALSE}
+#in outputs/200
+plink --tped partial-vcf.tped --tfam partial-vcf.tfam  --out binary --recode --allow-extra-chr --noweb
+plink --ped binary.ped --map binary.map --recode vcf --allow-extra-chr -out recode
+bcftools +prune -l 0.9 -w 10000 recode.vcf  -Ov -o recode.prune.vcf
+```
+
 
 
 
