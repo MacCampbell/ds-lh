@@ -1,0 +1,79 @@
+---
+title: "202-investigate-full"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Taking a step back. What kind of things should I be looking at?
+
+__1__ How good are the data?
+__2__ What signals are in the data?
+__3__ What about differences between otolith calls?
+
+
+## Part 1
+
+Let's check our samples for average coverage. On the farm, maybe I can do a one liner (this way isn't the fastest).   
+```{sh, eval=FALSE}
+srun --partition=high --nodes=1 --time=1-01:00:00 cat bamlists/full.bamlist | while read line; do samtools depth $line | awk '{sum+=$3} END { print sum/NR}' >> outputs/200/full.coverage; done;
+```
+
+Now we can look at the distribution of coverage in our samples, and drop the bottom fraction:    
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+samples<-read_tsv("outputs/100/meta2.rda")
+bams<-read_tsv("bamlists/full.bamlist",col_names = FALSE) %>% mutate(`Sequence File Name`=gsub(".sort-n.fixmate-m.sort.markdup-r.bam","",X1)) %>% mutate(Bams=X1)
+bams$`Sequence File Name`<-gsub("bams/","",bams$`Sequence File Name`)
+
+coverage<-read_tsv("outputs/200/full.coverage", col_names = FALSE)
+
+combined<-inner_join(bams,samples)
+
+combined$Coverage<-coverage$X1
+
+ggplot(combined)+
+  geom_histogram(aes(x=Coverage))+
+  facet_grid(.~Phenotype)+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  xlim(0,20)
+
+filtered<- combined %>% top_frac(.85, Coverage)
+
+ggplot(filtered)+
+  geom_histogram(aes(x=Coverage))+
+  facet_grid(.~Phenotype)+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  xlim(0,20)
+
+filtered %>% select(Phenotype) %>% group_by(Phenotype) %>% summarize(Count=n())
+```
+
+Let's replug the association test with these filtered data. Need a .bamlist and a .phenotype file.
+
+```{r, warning=FALSE, message=FALSE}
+bams<-select(filtered, `Sequence File Name`) %>% mutate(Path=paste0("bams/",`Sequence File Name`,".sort-n.fixmate-m.sort.markdup-r.bam")) %>% select(Path)
+write_tsv(bams, path = "bamlists/partial.bamlist", col_names = FALSE)
+
+phenos<-select(filtered,Phenotype)
+phenos$Phenotype<-gsub("FWR",0,phenos$Phenotype)
+phenos$Phenotype<-gsub("MIG",1,phenos$Phenotype)
+write_tsv(phenos, path = "phenos/partial.phenos", col_names=FALSE)
+```
+
+
+f
+Running 202.1-partial-asso.sh on cluster.
+
+
+
+## Part 2
+
+It seems to me that there may be some extremes in the data.  I'm curious how fish plot on a PCA coloring on migratory phenotype.   
+
+Considering panmictic population, perhaps looking a a machine learning approach to get at tha

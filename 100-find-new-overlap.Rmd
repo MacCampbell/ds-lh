@@ -41,6 +41,7 @@ But, we don't have all those files. So, I'll filter for what *.bams I found.
 mybams<-read_tsv("bamlists/mybams.txt", col_names=FALSE) %>% mutate(File=gsub(".sort-n.fixmate-m.sort.markdup-r.bam","",X1))
 
 meta2 <- meta %>% filter(`Sequence File Name` %in% mybams$File)
+write_tsv(meta2, "outputs/100/meta2.rda", col_names = TRUE)
 meta2 %>% select(Phenotype) %>% group_by(Phenotype) %>% summarize(Count=n())
 ```
 
