@@ -66,14 +66,14 @@ phenos$Phenotype<-gsub("MIG",1,phenos$Phenotype)
 write_tsv(phenos, path = "phenos/partial.phenos", col_names=FALSE)
 ```
 
-
-f
 Running 202.1-partial-asso.sh on cluster.
 
 
 
 ## Part 2
 
-It seems to me that there may be some extremes in the data.  I'm curious how fish plot on a PCA coloring on migratory phenotype.   
+It seems to me that there may be some extremes in the data.  I'm curious how fish plot on a PCA coloring on migratory phenotype. There also exists some ways to 
 
-Considering panmictic population, perhaps looking a a machine learning approach to get at tha
+
+
+Considering panmictic population, perhaps looking a a machine learning approach to get at if variants can be used to assign fish back to phenotypes may work.
