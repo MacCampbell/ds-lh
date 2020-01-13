@@ -31,7 +31,8 @@ module load benchmarks
 
 # The main job executable to run: note the use of srun before it
 # Using $HOME for better practice
-srun $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/partial.bamlist -yBin $HOME/ds-lh/phenos/partial.phenos -minMapQ 30 -minQ 20 -minInd 231 -doAsso 1 -GL 1 \
+srun $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/partial.bamlist -yBin $HOME/ds-lh/phenos/partial.phenos -minMapQ 30 -minQ 20 \ 
+-minInd 196 -doAsso 1 -GL 1 \
 -out $HOME/ds-lh/outputs/200/partial -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta 
 
