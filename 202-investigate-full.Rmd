@@ -74,7 +74,7 @@ Running 202.1-partial-asso.sh on cluster.
 
 It seems to me that there may be some extremes in the data.  I'm curious how fish plot on a PCA coloring on migratory phenotype and what the loadings are. I will make a DAPC plot of the two phenotypes as well and see what the extremes are composed of.   I'll make a *.vcf so I can also prune it later for linked SNPs.   
 
-Runing 202.2-make-vch.sh on cluster.
+Runing 202.2-make-vch.sh on cluster. Seg fault again. Switchiing to making text plink files to convert to .vcf.
 
 
 
