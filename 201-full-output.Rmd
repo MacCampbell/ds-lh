@@ -1,0 +1,26 @@
+---
+title: "201-full-output"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Full Data Set Output
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+
+data<-read_tsv(file="outputs/200/full.lrt0.gz")
+
+#Filtering like Eric A. did previously
+data <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p > 2)
+
+#Check for any significant values
+data %>% filter(log10p > 4)
+
+# Does 245	3043630 show up here?
+data %>% filter(Chromosome==245)
+```

@@ -18,8 +18,14 @@ data <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
   filter(log10p > 2)
 
 #Check for any significant values
-data %>% filter(log10p > 5)
+data %>% filter(log10p > 4)
 ```
+
+Oh, so that's cool. what about other things on Chromosome 245?
+```{r, warning=FALSE, message=FALSE}
+data %>% filter(Chromosome==245)
+```
+
 
 ```{r, warning=FALSE,message=FALSE}
 
