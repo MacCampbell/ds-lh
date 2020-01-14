@@ -203,7 +203,7 @@ plot
 
 
 ### One more idea, imbalance in samples
-This is a problem for machine learning, and may be for the angsd association test. so I'll generate an equal data set of 72 examples of each class, 144 total samples and run that through angsd and generate a set of SNPs for analysis in RandomForest.
+This is a problem for machine learning, and may be for the angsd association test. so I'll generate an equal data set of 72 examples of each class, 144 total samples and run that through angsd and generate a set of SNPs for analysis in RandomForest. One approach would be to set the training set size to the smaller category (2/3 of it).
 
 
 ## Part 3
