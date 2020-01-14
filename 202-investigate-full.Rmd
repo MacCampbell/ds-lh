@@ -11,7 +11,8 @@ knitr::opts_chunk$set(echo = TRUE)
 
 __1__ How good are the data?
 __2__ What signals are in the data?
-__3__ What about differences between otolith calls?
+__3__ Random forest search for informative loci
+__4__ What about differences between otolith calls?
 
 
 ## Part 1
@@ -109,10 +110,91 @@ save(genind, file="outputs/200/recode.genind")
 load("outputs/200/recode.genind")
 genind@pop=as.factor(filtered$Phenotype)
 dapc<-dapc(genind, n.pca=175, n.da=1)
-scatter(dapc)
+scatter(dapc, col=c("blue","red"))
 
 contrib <- loadingplot(dapc$var.contr, axis=1,
-thres=.0015, lab.jitter=1)
+thres=.0017, lab.jitter=0)
+
+assignplot(dapc)
+```
+Blue is FWR, Red is MIG.     
+     
+Plot the allele frequencies and see what the LRT scores are.     
+```{r, warning=FALSE,message=FALSE}
+vals<-contrib[contrib$var.values>.002]
+freq1 <- tab(genind2genpop(genind[loc=c("contig_103_481573")]),freq=TRUE)
+freq2 <- tab(genind2genpop(genind[loc=c("contig_58_571477")]),freq=TRUE)
+
+freq1
+freq2
+
+data %>% filter(Chromosome %in% c(58,103)) %>% filter(Position %in% c(571477,481573))
 ```
 
-Considering panmictic population, perhaps looking a a machine learning approach to get at if variants can be used to assign fish back to phenotypes may work.  
+And of course a PCA following adegenet tutorial.
+```{r, warning=FALSE, message=FALSE}
+X <- tab(genind, NA.method="mean")
+
+pca1 <- dudi.pca(X,scannf=FALSE,scale=FALSE)
+temp <- as.integer(pop(genind))
+myCol <- transp(c("blue","red"),.7)[temp]
+myPch <- c(15,17)[temp]
+## basic plot
+plot(pca1$li, col=myCol, cex=1, pch=myPch)
+```
+Pretty much what we expected except for those extreme values on Axis 1. These are:      
+89_1  -27.686470159   6.51236959    
+90_1  -27.606702285   4.83477556   
+
+bams/Ht19-20_2012_D03.sort-n.fixmate-m.sort.markdup-r.bam    
+bams/Ht19-21_2012_E03.sort-n.fixmate-m.sort.markdup-r.bam   
+
+I wonder what their deal is? Probably should drop them from analyses.
+
+```{r, warning=FALSE, message=FALSE}
+nInd(genind)
+drop<-c("89_1","90_1")
+gen <- genind[!row.names(genind@tab) %in% drop]
+nInd(gen)
+
+X2 <- tab(gen, NA.method="mean")
+
+pca2 <- dudi.pca(X2,scannf=FALSE,scale=FALSE)
+temp2 <- as.integer(pop(gen))
+myCol <- transp(c("blue","red"),.7)[temp]
+myPch <- c(15,17)[temp]
+## basic plot
+plot(pca2$li, col=myCol, cex=1, pch=myPch)
+```
+
+
+What if we assign two groups? I can get about 60-70 % assignment rates back to the original clusters, though unstable, which suggests more of a 50/50 split and this isn't meaningful (not shown)
+
+```{r, echo=FALSE, eval=FALSE, warning=FALSE, message=FALSE}
+clust<-find.clusters(gen, n.pca = 100, n.clust = 2)
+clust$size
+df<-as.data.frame(table(clust$grp, pop(gen)), col.lab=levels(pop(gen))) %>% filter(Freq > 0)
+df<-as_tibble(df)
+df
+
+plot<-ggplot(df, aes(Var1, Var2))+
+  theme(axis.title.y = element_text(size = rel(2)))+
+  theme(axis.title.x = element_text(size = rel(2)))+
+  theme(axis.text.x = element_text(angle = 90))+
+  labs(x="\nInferred Group", y="Phenotype\n")+
+  theme(panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black"))+
+  theme(text=element_text(family='Times'))+
+  theme(axis.text.x= element_text(face="bold", size=10, vjust = 0.5))+
+  theme(axis.text.y= element_text(face="bold", size=10))+
+  geom_point(aes(x=Var1, y=Var2, size=Freq))+
+  scale_size_area(limits=c(1,200), breaks=c(0,25,50,100,150,200))+
+  labs(size="Number\nof Individuals")
+
+plot
+```
+
+## Part 3
+Considering panmictic population, perhaps looking a a machine learning approach to get at if variants can be used to assign fish back to phenotypes may be a smart way to go.  
+
+
