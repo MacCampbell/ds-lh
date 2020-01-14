@@ -75,7 +75,7 @@ data <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
   filter(log10p > 2)
 
 #Check for any significant values
-data %>% filter(log10p > 5)
+data %>% filter(log10p > 4)
 ```
 
 
@@ -83,17 +83,36 @@ data %>% filter(log10p > 5)
 
 There are other options to association tests. First off, I will make a DAPC plot of the two phenotypes and examine the loadings. I can also look a PCA to see some things about the data.   I'll make a *.vcf so I can also prune it later for linked SNPs.   
 
-Runing 202.2-make-vch.sh on cluster. Seg fault again. Switching to making text plink files to convert to .vcf. We can recode and prune linked SNPs like so:
+Runing 202.2-make-vch.sh on cluster. Seg fault again. Switching to making text plink files to convert to .vcf. We can recode and prune linked SNPs.  Plink doesn't like non-human and numerically coded chromosome names, so I'll label them as contig_dd.
 
 ```{sh, eval=FALSE}
 #in outputs/200
-plink --tped partial-vcf.tped --tfam partial-vcf.tfam  --out binary --recode --allow-extra-chr --noweb
+cat partial-vcf.tped | perl -pe 's/^(\d+)\s\d+_/contig_$1 contig_$1_/' > temp.tped
+cp partial-vcf.tfam temp.tfam
+
+plink --tped temp.tped --tfam temp.tfam  --out binary --recode --allow-extra-chr --noweb
 plink --ped binary.ped --map binary.map --recode vcf --allow-extra-chr -out recode
 bcftools +prune -l 0.9 -w 10000 recode.vcf  -Ov -o recode.prune.vcf
 ```
 
+4719 SNPs!    
 
+```{r,eval=FALSE}
+library(adegenet)
+library(vcfR)
+vcf<-read.vcfR(file="outputs/200/recode.vcf")
+genind<-vcfR2genind(vcf)
+save(genind, file="outputs/200/recode.genind")
+```
 
+```{r, warning=FALSE, message=FALSE}
+load("outputs/200/recode.genind")
+genind@pop=as.factor(filtered$Phenotype)
+dapc<-dapc(genind, n.pca=175, n.da=1)
+scatter(dapc)
 
+contrib <- loadingplot(dapc$var.contr, axis=1,
+thres=.0015, lab.jitter=1)
+```
 
-Considering panmictic population, perhaps looking a a machine learning approach to get at if variants can be used to assign fish back to phenotypes may work.
+Considering panmictic population, perhaps looking a a machine learning approach to get at if variants can be used to assign fish back to phenotypes may work.  
