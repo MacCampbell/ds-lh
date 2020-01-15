@@ -9,10 +9,10 @@ knitr::opts_chunk$set(echo = TRUE)
 
 # Taking a step back. What kind of things should I be looking at?
 
-__1__ How good are the data?
-__2__ What signals are in the data?
-__3__ Random forest search for informative loci
-__4__ What about differences between otolith calls?
+__1__ How good are the data?     
+__2__ What signals are in the data?     
+__3__ Random forest search for informative loci     
+__4__ What about differences between otolith calls?     
 
 
 ## Part 1
@@ -201,6 +201,26 @@ plot(pca2$li, col=myCol, cex=1, pch=myPch)
 ```
 
 
+And for the association testing:     
+```{r, warning=FALSE, message=FALSE}
+data<-read_tsv(file="outputs/200/216.lrt0.gz")
+
+#Converting to log10p, and removing p - values > 0.01
+data <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p > 2)
+
+#How many pass this filter?
+nrow(data)
+
+# To be explicit, our p - values convert like so
+# -log10(0.01) = 2
+# -log10(0.001) = 3
+# -log10(0.0001) = 4
+
+
+#Check for most significant values
+data %>% filter(log10p > 3) %>% group_by(Chromosome) %>% summarize(Count=n()) %>% arrange(-Count)
+```
 
 What if we assign two groups? I can get about 60-70 % assignment rates back to the original clusters, though unstable, which suggests more of a 50/50 split and this isn't meaningful (not shown)
 
@@ -229,8 +249,9 @@ plot
 ```
 
 
+
 ### One more idea, imbalance in samples
-This is a problem for machine learning, and may be for the angsd association test. so I'll generate an equal data set of 72 examples of each class, 144 total samples and run that through angsd and generate a set of SNPs for analysis in RandomForest. One approach would be to set the training set size to the smaller category (2/3 of it).
+This is a problem for machine learning, and may be for the angsd association test. so I'll generate an equal data set of 72 examples of each class, 144 total samples and run that through angsd and generate a set of SNPs for analysis in RandomForest. One approach would be to set the training set size to the smaller category (2/3 of it), so I'll also call genotypes in 0,1,2 format for the 216 sample data set.
 
 
 ## Part 3
