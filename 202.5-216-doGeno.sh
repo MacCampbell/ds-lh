@@ -34,9 +34,11 @@ module load benchmarks
 
 srun $HOME/angsd/angsd -P 24 -b $HOME/ds-lh/bamlists/216.bamlist -minInd 194 -out $HOME/ds-lh/outputs/200/216-doGeno \
 -minMaf 0.05 -minMapQ 30 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 \
--SNP_pval 1e-6 -doGeno 2 -doPost 1 -postCutoff 0.95 -geno_minDepth 5
+-ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta \
+-SNP_pval 1e-6 -doGeno 2 -doPost 1 -postCutoff 0.95 -setMinDepthInd 5
 
 srun $HOME/angsd/angsd -P 24 -b $HOME/ds-lh/bamlists/216.bamlist -minInd 194 -out $HOME/ds-lh/outputs/200/216-doPlink \
 -minMaf 0.05 -minMapQ 30 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 \
--SNP_pval 1e-6 -doGeno 2 -doPost 1 -postCutoff 0.95 -geno_minDepth 5 -doPlink 2
+-ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta 
+-SNP_pval 1e-6 -doGeno 2 -doPost 1 -postCutoff 0.95 -setMinDepthInd 5 -doPlink 2
 
