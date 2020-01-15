@@ -12,13 +12,22 @@ knitr::opts_chunk$set(echo = TRUE)
 ```{r, warning=FALSE, message=FALSE}
 library(tidyverse)
 
-data<-read_tsv(file="outputs/200/full.lrt0.gz")
+data<-read_tsv(file="outputs/200/full.lrt0.gz") #this is 101,143 SNPs
 
-#Filtering like Eric A. did previously
+#Filtering out p-values > .01
+#LRT "The likelihood ratio statistic. This statistic is chi square distributed with one degree of freedom."
 data <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
   filter(log10p > 2)
 
-#Check for any significant values
+#How many sites are significant at a p-value < 0.01
+nrow(data)
+
+# To be explicit,
+# -log10(0.01) = 2
+# -log10(0.001) = 3
+# -log10(0.0001) = 4
+
+#Check out the most significant LRTs 
 data %>% filter(log10p > 4)
 
 # Does 245	3043630 show up here?

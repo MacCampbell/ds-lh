@@ -71,14 +71,41 @@ Running 202.1-partial-asso.sh on cluster. Did we get any hits?
 ```{r, warning=FALSE, message=FALSE}
 data<-read_tsv(file="outputs/200/partial.lrt0.gz")
 
-#Converting to log10p
+#Converting to log10p, and removing p - values > 0.01
 data <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
   filter(log10p > 2)
 
-#Check for any significant values
-data %>% filter(log10p > 4)
+#How many pass this filter?
+nrow(data)
+
+# To be explicit, our p - values convert like so
+# -log10(0.01) = 2
+# -log10(0.001) = 3
+# -log10(0.0001) = 4
+
+
+#Check for most significant values
+data %>% filter(log10p > 3) %>% group_by(Chromosome) %>% summarize(Count=n()) %>% arrange(-Count)
 ```
 
+I should also check a qqplot. Following this guide: https://genome.sph.umich.edu/wiki/Code_Sample:_Generating_QQ_Plots_in_R
+
+```{r, warning=FALSE, message=FALSE}
+full<-read_tsv(file="outputs/200/partial.lrt0.gz")
+
+full<-full %>% mutate(p=dchisq(LRT, df=1)) 
+
+#Following guide
+my.pvalues<-full$p
+
+#Calculate expectations
+exp.pvalues<-(rank(my.pvalues, ties.method="first")+.5)/(length(my.pvalues)+1)
+
+#Make plot
+plot(-log10(exp.pvalues), -log10(my.pvalues), asp=1)
+abline(0,1)
+
+```
 
 ## Part 2
 
