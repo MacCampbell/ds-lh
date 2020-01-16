@@ -145,6 +145,18 @@ contrib <- loadingplot(dapc$var.contr, axis=1,
 thres=.0017, lab.jitter=0)
 
 assignplot(dapc)
+#Another way to look at the assignments
+post<-as_tibble(dapc$posterior)
+post$Phenotype<-dapc$grp
+
+ggplot((post %>% filter(Phenotype == "FWR")), aes(x=FWR))+
+  geom_histogram(color="darkred", fill="red")+
+  ggtitle("Posterior Probability of FWR Assigned to FWR")
+
+ggplot((post %>% filter(Phenotype == "MIG")), aes(x=MIG))+
+  geom_histogram(color="darkblue", fill="blue")+
+  ggtitle("Posterior Probability of MIG Assigned to MIG")
+
 ```
 
 
@@ -206,8 +218,7 @@ And for the association testing:
 data<-read_tsv(file="outputs/200/216.lrt0.gz")
 
 #Converting to log10p, and removing p - values > 0.01
-data <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
-  filter(log10p > 2)
+data <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) 
 
 #How many pass this filter?
 nrow(data)
@@ -219,8 +230,23 @@ nrow(data)
 
 
 #Check for most significant values
-data %>% filter(log10p > 3) %>% group_by(Chromosome) %>% summarize(Count=n()) %>% arrange(-Count)
+data %>% filter(log10p > 4) 
 ```
+ 
+```{r, warning=FALSE, message=FALSE}
+#Get the chroms with high scores
+Chroms<-data %>% filter(log10p > 4) %>% select(Chromosome) %>% unique()
+df<-data %>% filter(Chromosome %in% Chroms$Chromosome) %>% filter(log10p >= 0)
+                    
+ggplot(df)+geom_point(aes(x=Position, y=log10p, color=log10p), alpha=0.75, cex=0.7)+
+  facet_wrap(~ Chromosome, ncol=7, scales="free_x")+
+  scale_color_gradient(low="gray", high="skyblue")+
+  geom_hline(yintercept =4, size=0.5, alpha=0.5)+
+  theme_bw()+
+  theme(axis.text.x= element_text(angle=45,hjust=1))+
+  theme(panel.grid = element_blank())
+```
+
 
 What if we assign two groups? I can get about 60-70 % assignment rates back to the original clusters, though unstable, which suggests more of a 50/50 split and this isn't meaningful (not shown)
 
