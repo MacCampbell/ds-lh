@@ -53,6 +53,7 @@ ggplot(filtered)+
   xlim(0,20)
 
 filtered %>% select(Phenotype) %>% group_by(Phenotype) %>% summarize(Count=n())
+save(filtered, file="outputs/200/filtered.rda")
 ```
 
 Let's replug the association test with these filtered data. Need a .bamlist and a .phenotype file.

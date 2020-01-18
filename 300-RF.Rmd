@@ -1,0 +1,136 @@
+---
+title: "300-RF"
+output: html_notebook
+---
+
+# DAPC With 216 samples.
+
+
+```{r, sh, eval=FALSE}
+library(adegenet)
+load("outputs/200/recode.genind")
+load("outputs/200/filtered.rda")
+genind@pop=as.factor(filtered$Phenotype)
+drop<-c("89_1","90_1")
+gen <- genind[!row.names(genind@tab) %in% drop]
+nInd(gen)
+
+#PCA
+X <- tab(gen, NA.method="mean")
+
+pca1 <- dudi.pca(X,scannf=FALSE,scale=FALSE)
+temp <- as.integer(pop(gen))
+myCol <- transp(c("red","blue"),.7)[temp]
+myPch <- c(15,17)[temp]
+plot(pca1$li, col=myCol, cex=1, pch=myPch)
+
+pcdf<-as_tibble(pca1$l1) %>% rename(PC1=RS1, PC2=RS2)
+pcdf$Phenotype<-pop(gen)
+
+ggplot(pcdf)+geom_point(aes(x=PC1, y=PC2, color=Phenotype), alpha=0.75)+
+  scale_color_manual(values=c("red","blue"))+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+  
+#DAPC
+dapc<-dapc(gen, n.pca=175, n.da=1)
+#Red is FWR, Blue is MIG.    
+scatter(dapc, col=c("red","blue"))
+contrib <- loadingplot(dapc$var.contr, axis=1,
+thres=.0017, lab.jitter=0)
+```
+
+Wow! Loadings are bigger than ever.
+
+```{r, warning=FALSE, message=FALSE}
+tab(genind2genpop(genind[loc=c("contig_103_481573")]),freq=TRUE)
+tab(genind2genpop(genind[loc=c("contig_58_571477")]),freq=TRUE)
+tab(genind2genpop(genind[loc=c("contig_58_2863421")]),freq=TRUE)
+tab(genind2genpop(genind[loc=c("contig_105394_1469")]),freq=TRUE)
+
+
+```
+
+Some version of an assignment plot.    
+```{r, warning=FALSE, message=FALSE}
+post<-as_tibble(dapc$posterior)
+post$Phenotype<-dapc$grp
+
+ggplot((post %>% filter(Phenotype == "FWR")), aes(x=FWR))+
+  geom_histogram(color="darkred", fill="red")+
+  ggtitle("Posterior Probability of FWR Assigned to FWR")+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+  
+ggplot((post %>% filter(Phenotype == "MIG")), aes(x=MIG))+
+  geom_histogram(color="darkblue", fill="blue")+
+  ggtitle("Posterior Probability of MIG Assigned to MIG")+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+
+```
+
+# Load in pruned data
+
+```{r, warning=FALSE, message=FALSE, eval=FALSE}
+vcf<-read.vcfR(file="outputs/200/recode.prune.vcf")
+genprune<-vcfR2genind(vcf)
+genprune@pop=as.factor(filtered$Phenotype)
+genprune <- genprune[!row.names(genind@tab) %in% drop]
+save(genprune, file="outputs/300/pruned.genind")
+dapc2<-dapc(genprune, n.pca=175, n.da=1)
+scatter(dapc2, col=c("red","blue"))
+```
+
+There are quite a few of those FWR fish at the tail end overlapping with MIG fish.
+```{r, warning=FALSE, message=FALSE}
+load("outputs/300/pruned.genind")
+dapc2<-dapc(genprune, n.pca=175, n.da=1)
+scatter(dapc2, col=c("red","blue"))
+
+post2<-as_tibble(dapc2$posterior)
+post2$Phenotype<-dapc2$grp
+post2$Ind<-indNames(genprune)
+
+FWR<-post2 %>% filter(Phenotype=="FWR" & FWR > 0.95)
+MIG<-post2 %>% filter(Phenotype=="MIG" & MIG > 0.95)
+
+combined<-rbind(FWR, MIG) # now 202 individuals
+
+sub<-genprune[row.names(genprune@tab) %in% combined$Ind]
+
+dapc3<-dapc(sub, n.pca=175, n.da=1)
+
+scatter(dapc3, col=c("red","blue"))
+
+```
+
+OOhhh, what are loadings looking like now?
+
+```{r, warning=FALSE, message=FALSE}
+contrib <- loadingplot(dapc3$var.contr, axis=1,
+thres=.0017, lab.jitter=0)
+
+tab(genind2genpop(genind[loc=c("contig_103_481573")]),freq=TRUE)
+tab(genind2genpop(genind[loc=c("contig_58_571477")]),freq=TRUE)
+tab(genind2genpop(genind[loc=c("contig_58_2863421")]),freq=TRUE)
+
+```
+
+I will check to see if those 14 individuals had an effect on association tests. Creating a new bamlist and pheno list.
+
+```{r, warning=FALSE, message=FALSE}
+
+filtered$ID<-indNames(genind)
+
+filtered202<-filtered %>% filter(ID %in% indNames(sub))
+
+bams<-select(filtered202, `Sequence File Name`) %>% mutate(Path=paste0("bams/",`Sequence File Name`,".sort-n.fixmate-m.sort.markdup-r.bam")) %>% select(Path)
+write_tsv(bams, path = "bamlists/202.bamlist", col_names = FALSE)
+
+phenos<-select(filtered202,Phenotype)
+phenos$Phenotype<-gsub("FWR",0,phenos$Phenotype)
+phenos$Phenotype<-gsub("MIG",1,phenos$Phenotype)
+write_tsv(phenos, path = "phenos/202.phenos", col_names=FALSE)
+
+```
