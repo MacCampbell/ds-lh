@@ -36,3 +36,6 @@ srun $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/202.bamlist -yBin $HOME/
 -out $HOME/ds-lh/outputs/300/202 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta 
 
+#For whatever reason there were issues getting 24 tasks going today. Ran this command:
+# srun --partition=high --nodes=2  --ntasks-per-node=8 --ntasks=16  --time=1-01:00:00  $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/202.bamlist -yBin $HOME/ds-lh/phenos/202.phenos -minMapQ 30 -minQ 20 -minInd 182 -doAsso 1 -GL 1 -out $HOME/ds-lh/outputs/300/202 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 -ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta > outputs/300/std.out 2> outputs/300/std.err &
+

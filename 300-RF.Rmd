@@ -137,3 +137,8 @@ phenos$Phenotype<-gsub("MIG",1,phenos$Phenotype)
 write_tsv(phenos, path = "phenos/202.phenos", col_names=FALSE)
 
 ```
+
+# And now to prep data for RF
+
+We probabaly want our pruned 202 data set reformatted for Random Forest
+
