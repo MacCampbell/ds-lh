@@ -19,7 +19,7 @@
 #SBATCH --ntasks-per-node=8
 #SBATCH --ntasks=24
 #SBATCH --time=1-01:00:00 #run for a day and an hour
-#SBATCH --mem=10G
+### Just in case I want to use later ### #SBATCH --mem=10G
 
 # Standard out and Standard Error output files with the job number in the name.
 #SBATCH -o bench-%j.output
