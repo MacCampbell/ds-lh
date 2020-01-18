@@ -1,12 +1,17 @@
 ---
 title: "300-RF"
-output: html_notebook
+output: html_document
 ---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
 
 # DAPC With 216 samples.
 
 
-```{r, sh, eval=FALSE}
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
 library(adegenet)
 load("outputs/200/recode.genind")
 load("outputs/200/filtered.rda")
@@ -47,8 +52,6 @@ tab(genind2genpop(genind[loc=c("contig_103_481573")]),freq=TRUE)
 tab(genind2genpop(genind[loc=c("contig_58_571477")]),freq=TRUE)
 tab(genind2genpop(genind[loc=c("contig_58_2863421")]),freq=TRUE)
 tab(genind2genpop(genind[loc=c("contig_105394_1469")]),freq=TRUE)
-
-
 ```
 
 Some version of an assignment plot.    
