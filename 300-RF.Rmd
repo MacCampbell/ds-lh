@@ -98,6 +98,12 @@ post2$Ind<-indNames(genprune)
 FWR<-post2 %>% filter(Phenotype=="FWR" & FWR > 0.95)
 MIG<-post2 %>% filter(Phenotype=="MIG" & MIG > 0.95)
 
+#Pulling out the posterior probabilities for group assignments
+temp1<-post2 %>% select (FWR, Phenotype) %>% filter(Phenotype=="FWR",FWR < 0.95)
+temp2<-post2 %>% select (MIG, Phenotype) %>% filter(Phenotype=="MIG",MIG < 0.95)
+# pps of ~ 0.75 and 0.50
+ggplot(temp1)+geom_histogram(aes(x=FWR))
+
 combined<-rbind(FWR, MIG) # now 202 individuals
 
 sub<-genprune[row.names(genprune@tab) %in% combined$Ind]
@@ -135,6 +141,36 @@ phenos<-select(filtered202,Phenotype)
 phenos$Phenotype<-gsub("FWR",0,phenos$Phenotype)
 phenos$Phenotype<-gsub("MIG",1,phenos$Phenotype)
 write_tsv(phenos, path = "phenos/202.phenos", col_names=FALSE)
+
+```
+
+
+And to check it out... No real difference in outcome.    
+
+```{r, warning=FALSE, message=FALSE}
+
+asso<-read_tsv(file="outputs/300/202.lrt0.gz")
+
+#Converting to log10p, and removing p - values > 0.01
+asso <- asso %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p > 2)
+
+asso %>% filter(log10p > 3.5) %>% arrange(desc(log10p))
+
+```
+
+## One last burning question, what if I make an arbitrary division within a group?
+I'm going to take 60 FWR and split in half
+```{r, warning=FALSE, message=FALSE}
+pop1<-rep("pop1", 30)
+pop2<-rep("pop2", 30)
+fwr<-sub[1:60]
+fwr@pop<-as.factor(c(pop1,pop2))
+fw<-dapc(fwr, n.pca=60, n.da=1)
+scatter(fw)
+
+loadingplot(fw$var.contr, axis=1,
+thres=.0017, lab.jitter=0)
 
 ```
 
