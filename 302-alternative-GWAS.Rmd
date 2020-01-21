@@ -1,0 +1,75 @@
+---
+title: "302-alternative-GWAS"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Let's take our data and try an alternative analysis.
+
+https://angus.readthedocs.io/en/2017/GWAS.html
+
+
+```{sh, eval=FALSE}
+vcftools --vcf outputs/200/recode.vcf --plink --out outputs/300/plink
+plink --file outputs/300/plink --allow-no-sex --allow-extra-chr --make-bed --noweb --out outputs/300/plink.binary
+
+#Alternate alleles
+cat outputs/200/recode.vcf | awk 'BEGIN{FS="\t";OFS="\t";}/#/{next;}{{if($3==".")$3=$1":"$2;}print $3,$5;}'  > outputs/300/alt_alleles
+
+#List of phenotypes
+for i in {1..72}; do echo  $i"_1" $i"_1" "FWR" >>fwr.list; done;
+for i in {73..218}; do echo  $i"_1" $i"_1" "MIG">>mig.list; done;
+cat fwr.list mig.list > pheno.txt
+
+#Set phenotypes and run 
+plink --bfile outputs/300/plink.binary --make-pheno outputs/300/pheno.txt MIG --assoc --reference-allele outputs/300/alt_alleles --allow-no-sex --allow-extra-chr --adjust --noweb --out outputs/300/plink-gwas
+
+```
+
+Looking at the files.   
+
+which contains the fields      
+     CHR         Chromosome number   
+     SNP         SNP identifer   
+     UNADJ       Unadjusted p-value   
+     GC          Genomic-control corrected p-values     
+     BONF        Bonferroni single-step adjusted p-values    
+     HOLM        Holm (1979) step-down adjusted p-values   
+     SIDAK_SS    Sidak single-step adjusted p-values  
+     SIDAK_SD    Sidak step-down adjusted p-values   
+     FDR_BH      Benjamini & Hochberg (1995) step-up FDR control  
+     FDR_BY      Benjamini & Yekutieli (2001) step-up FDR control     
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+plink<-read_table(file = "outputs/300/plink-gwas.assoc.adjusted")
+
+#Getting the top 1%
+top1<-plink %>% top_frac(-.01, GC)
+
+```
+
+Let's load up the top hits from the other analysis
+
+```{r, warning=FALSE, message=FALSE}
+data<-read_tsv(file="outputs/200/216.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>% mutate(SNP = paste0("contig_",Chromosome,"_",Position))
+top2<-data %>% top_frac(.01, log10p)
+
+comb<-inner_join(top1, top2)
+comb
+
+total<-inner_join(plink,data)
+ggplot(total, aes(x=log10p, y=-log10(GC)))+geom_point(color="darkgrey",alpha=0.75)+
+  geom_point(data=comb, aes(x=log10p, y=-log10(GC)), color="red", alpha=0.75, cex=1.5)+
+  theme_bw()+
+  theme(panel.grid = element_blank())
+
+#Wheere are most of these found?
+comb %>% group_by(Chromosome) %>% summarize(Count=n()) %>% arrange(-Count)
+write.csv(comb, file="outputs/300/combined.csv")
+```
+
+

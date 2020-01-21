@@ -76,6 +76,7 @@ ggplot((post %>% filter(Phenotype == "MIG")), aes(x=MIG))+
 # Load in pruned data
 
 ```{r, warning=FALSE, message=FALSE, eval=FALSE}
+library(vcfR)
 vcf<-read.vcfR(file="outputs/200/recode.prune.vcf")
 genprune<-vcfR2genind(vcf)
 genprune@pop=as.factor(filtered$Phenotype)
@@ -103,7 +104,7 @@ temp1<-post2 %>% select (FWR, Phenotype) %>% filter(Phenotype=="FWR",FWR < 0.95)
 temp2<-post2 %>% select (MIG, Phenotype) %>% filter(Phenotype=="MIG",MIG < 0.95)
 # pps of ~ 0.75 and 0.50
 ggplot(temp1)+geom_histogram(aes(x=FWR))
-
+ggplot(temp2)+geom_histogram(aes(x=MIG))
 combined<-rbind(FWR, MIG) # now 202 individuals
 
 sub<-genprune[row.names(genprune@tab) %in% combined$Ind]
@@ -157,6 +158,26 @@ asso <- asso %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
 
 asso %>% filter(log10p > 3.5) %>% arrange(desc(log10p))
 
+```
+
+## What are those 16 funny fish about
+2 at extremes of PCA. Are they real? Don't know.     
+14 that seemed like hybrids/miss-assigned, of those, two may be some sort of mislabelling. I don't know.     
+
+```{r, warning=FALSE, message=FALSE}
+table<-as_tibble(dapc$posterior)
+table$Samples<-row.names(dapc$posterior)
+
+#        FWR   MIG Samples
+#      <dbl> <dbl> <chr>  
+# 1 1.93e- 3 0.998 13_1   
+# bams/Ht19-31_2012_G04.sort-n.fixmate-m.sort.markdup-r.bam
+
+#Also 132_1
+#bams/Ht20-30_2012_F04.sort-n.fixmate-m.sort.markdup-r.bam
+
+samples<-read_tsv("outputs/100/meta2.rda")
+samples %>% filter(`Sequence File Name` %in% c("Ht19-31_2012_G04","Ht20-30_2012_F04"))
 ```
 
 ## One last burning question, what if I make an arbitrary division within a group?
