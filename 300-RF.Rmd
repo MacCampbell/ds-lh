@@ -195,6 +195,10 @@ thres=.0017, lab.jitter=0)
 
 ```
 
+60 sample GWAS. I'll take these same 60 samples and see if I get a result from the GWAs.
+
+
+
 # And now to prep data for RF
 
 We probabaly want our pruned 202 data set reformatted for Random Forest
