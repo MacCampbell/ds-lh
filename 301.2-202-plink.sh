@@ -4,7 +4,7 @@
 # This script is run some test associations on ds lh data.
 
 # Name of the job 
-#SBATCH -J 144
+#SBATCH -J 202
 
 #Email myself
 #SBATCH --mail-user=maccampbell@ucdavis.edu
@@ -33,11 +33,11 @@ module load benchmarks
 # Using $HOME for better practice
 
 #Making a plink compatible file for recoding
-srun $HOME/angsd/angsd -P 24 -b $HOME/ds-lh/bamlists/144.bamlist -minInd 130 -out $HOME/ds-lh/outputs/200/144-plink \
+srun $HOME/angsd/angsd -P 24 -b $HOME/ds-lh/bamlists/202.bamlist -minInd 182 -out $HOME/ds-lh/outputs/300/202-plink \
 -minMaf 0.05 -minMapQ 30 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 \
 -SNP_pval 1e-6 -doGeno 4 -doPost 1 -postCutoff 0.95 -doPlink 2
 
-#coding these as numeric
-srun $HOME/angsd/angsd -P 24 -b $HOME/ds-lh/bamlists/144.bamlist -minInd 130 -out $HOME/ds-lh/outputs/200/144-plink-mm-num \
+#coding these as numeric .geno.gz
+srun $HOME/angsd/angsd -P 24 -b $HOME/ds-lh/bamlists/202.bamlist -minInd 182 -out $HOME/ds-lh/outputs/300/202 \
 -minMaf 0.05 -minMapQ 30 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 \
--SNP_pval 1e-6 -doGeno 2 -doPost 1 -postCutoff 0.95 -doPlink 2
+-SNP_pval 1e-6 -doGeno 2 -doPost 1 -postCutoff 0.95
