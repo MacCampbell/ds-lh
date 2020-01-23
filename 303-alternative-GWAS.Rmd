@@ -67,7 +67,7 @@ ggplot(total, aes(x=log10p, y=-log10(GC)))+geom_point(color="darkgrey",alpha=0.7
   theme_bw()+
   theme(panel.grid = element_blank())
 
-#Wheere are most of these found?
+#Where are most of these found?
 comb %>% group_by(Chromosome) %>% summarize(Count=n()) %>% arrange(-Count)
 write.csv(comb, file="outputs/300/combined.csv")
 ```
