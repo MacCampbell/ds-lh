@@ -15,7 +15,7 @@ This is meant to show some key results of what I have been doing with the two da
 ## Surviving Inputs
 Initially I filtered the data sets for two things. (1) Overlap between otolith and genetic data, and (2) sequencing depth of individuals with genetic data. I omitted the bottom 15% of samples in terms of coverage. This results in 72 FWR and 146 MIG fish with sequence data.
 
-```{r, warning=FALSE, message=FALSE, echo=FALSE, fig.width=6, fig.height=4}
+```{r, warning=FALSE, message=FALSE, echo=FALSE, fig.width=7, fig.height=5}
 library(tidyverse)
 samples<-read_tsv("outputs/100/meta2.rda")
 bams<-read_tsv("bamlists/full.bamlist",col_names = FALSE) %>% mutate(`Sequence File Name`=gsub(".sort-n.fixmate-m.sort.markdup-r.bam","",X1)) %>% mutate(Bams=X1)
@@ -36,6 +36,7 @@ ggplot(combined)+
   ggtitle("Coverage of Samples with Otolith Data")+
   theme(plot.title = element_text(hjust = 0.5))
 
+
 filtered<- combined %>% top_frac(.85, Coverage)
 
 ggplot(filtered)+
@@ -44,7 +45,7 @@ ggplot(filtered)+
   theme_bw()+
   theme(panel.grid = element_blank())+
   xlim(0,20)+
-  ggtitle("Coverage of top 85% of Samples with Otolith Data")+
+  ggtitle("Average Coverage of Top 85% of Samples with Otolith Data")+
   theme(plot.title = element_text(hjust = 0.5))
 
 
@@ -89,8 +90,8 @@ poptable
 ```
 
 
-## Separating Phenotypes Based on Genetic Data
-A principal component analysis shows the axes of maximum variation in the data (Note: While writing this I realized I did not examine PC's 3 or 4 as these were not calculated by the function I used. I will examine those in the future). We have here two groups, and, we can maximize separation of the two groups using a discriminant analysis of principal components. As we have only two groups and no strong signal for more than that, a single discriminant function is shown.
+## Separating Phenotypes Based on Genetic Data - DAPC
+A principal component analysis shows the axes of maximum variation in the data (Note: While writing this I realized I did not examine PC's 3 or 4 as these were not calculated by the function I used. I will examine those in the future). We have here two groups, and, we can maximize separation of the two groups using a discriminant analysis of principal components (DAPC). As we have only two groups and no strong signal for more than that, a single discriminant function is shown.
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE}
 
@@ -101,33 +102,111 @@ scatter(dapc, col=c("red","blue"))
 ```
 
 
-This approach separates our groups (FWR=red, MIG=blue) with individual positions shown in the carpet plot on the x-axis, density on the y-axis. The slightly bimodal density plots can be examined by looking at the posterior probability of assignment into the FWR and MIG groups. Notably, there are individuals in each group that have a 0 posterior probability of assignment to phenotypic class:     
-
+This approach separates our groups (FWR=red, MIG=blue) with individual positions shown in the carpet plot on the x-axis, density on the y-axis. The slightly bimodal density plots can be examined by looking at the posterior probability of assignment into the FWR and MIG groups. I have excluded all fish with a posterior probability > 0.95, resulting in 14 individuals. Notably, there are individuals in each group that have a 0 posterior probability of assignment to their prior phenotypic class, these are:
+2013-SKT-6421    				
+2013-SKT-6261   
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE}
 
 post<-as_tibble(dapc$posterior)
 post$Phenotype<-dapc$grp
 
-ggplot((post %>% filter(Phenotype == "FWR")), aes(x=FWR))+
+ggplot((post %>% filter(Phenotype == "FWR" & FWR < 0.95)), aes(x=FWR))+
   geom_histogram(color="darkred", fill="red")+
   ggtitle("Posterior Probability of FWR Assigned to FWR")+
   theme_bw()+
   theme(plot.title = element_text(hjust = 0.5))
 
 
-ggplot((post %>% filter(Phenotype == "MIG")), aes(x=MIG))+
+ggplot((post %>% filter(Phenotype == "MIG" & MIG < 0.95)), aes(x=MIG))+
   geom_histogram(color="darkblue", fill="blue")+
   ggtitle("Posterior Probability of MIG Assigned to MIG")+
   theme_bw()+
   theme(plot.title = element_text(hjust = 0.5))
 
 
+#samples<-read_tsv("outputs/100/meta2.rda")
+#samples %>% filter(`Sequence File Name` %in% c("Ht19-31_2012_G04","Ht20-30_2012_F04")) %>% select(`Sample_ID`)
 
 ```
+What I find particularly interesting about this is that there are a lot of values around 0.50 and 0.75.    
 
+With DAPC, I can examine which variants contribute the most to the separation of phenotypes with a loading plot, and then pull out some allele frequencies.     
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, fig.width=5}
 contrib <- loadingplot(dapc$var.contr, axis=1,
 thres=.0017, lab.jitter=0)
 
-assignplot(dapc)
-#Another way to look at the assignments
+tab(genind2genpop(genind[loc=c("contig_103_481573")]),freq=TRUE)
+tab(genind2genpop(genind[loc=c("contig_58_571477")]),freq=TRUE)
+tab(genind2genpop(genind[loc=c("contig_58_2863421")]),freq=TRUE)
+tab(genind2genpop(genind[loc=c("contig_105394_1469")]),freq=TRUE)
+
+```
+
+## Genome Wide Association Study
+I conducted two different genome wide association studies on the data (angsd and plink). These methods are largely based around using a chi-squared test, and, often a p-value of 5 x 10-8 is considered meaningful. Neither test did find significant results in the conventional sense, which often seems to occur. Here are the top results from the ANGSD association test, and a Manhattan style plot of Chromosome 58.   
+To be explicit, our p - values convert like so    
+ -log10(0.01) = 2   
+ -log10(0.001) = 3    
+ -log10(0.0001) = 4   
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+data<-read_tsv(file="outputs/200/216.lrt0.gz")
+
+#Converting to log10p
+data <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) 
+
+# To be explicit, our p - values convert like so
+# -log10(0.01) = 2
+# -log10(0.001) = 3
+# -log10(0.0001) = 4
+
+
+#Check for most significant values
+data %>% filter(log10p > 4) %>% arrange(-log10p)
+
+data %>% filter(log10p > 3) %>% group_by(Chromosome) %>% summarize(Count=n()) %>% arrange(-Count)
+
+#read_tsv(file="outputs/300/202.lrt0.gz") %>% arrange(-LRT) %>% mutate(log10p=-log10(dchisq(LRT, df = 1))) %>% filter(Chromosome==58)
+ggplot(data%>%filter(Chromosome %in% c(58) & log10p>=1))+
+  geom_point(aes(x=Position, y=log10p, color=log10p), alpha=0.75, cex=0.7)+
+  facet_wrap(~ Chromosome, ncol=7, scales="free_x")+
+  scale_color_gradient(low="gray", high="skyblue")+
+  theme_bw()+
+  theme(axis.text.x= element_text(angle=45,hjust=1))+
+  theme(panel.grid = element_blank())
+```
+
+Considering the top 1% of results shared between separate tests has been reported in the literature as a method of determine which SNPs may be associated with the trait. This approach highlights 43 SNPs for me, mostly found on the assembly contigs 114514 and 58. This includes top SNPs shown by DAPC to be able to separate the two phenotypes genetically.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+library(ggrepel)
+plink<-read_table(file = "outputs/300/plink-gwas.assoc.adjusted")
+
+#Getting the top 1%
+top1<-plink %>% top_frac(-.01, GC)
+
+data<-read_tsv(file="outputs/200/216.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>% mutate(SNP = paste0("contig_",Chromosome,"_",Position))
+top2<-data %>% top_frac(.01, log10p)
+
+comb<-inner_join(top1, top2)
+
+text<-comb%>%filter(Chromosome==58)%>% mutate(Text=gsub("contig_","",SNP))
+total<-inner_join(plink,data)
+ggplot(total, aes(x=log10p, y=-log10(GC)))+geom_point(color="darkgrey",alpha=0.5)+
+  geom_point(data=comb, aes(x=log10p, y=-log10(GC)), color="red", alpha=0.75, cex=1)+
+  geom_point(data=text, aes(x=log10p, y=-log10(GC)), color="black", alpha=0.75, cex=1.5)+
+  geom_text_repel(data=text, aes(x=log10p, y=-log10(GC), label=Text ) )+
+  ylab("-log10p PLINK")+
+  xlab("-log10p ANGSD")+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  ggtitle("")
+
+#Where are most of these found?
+comb %>% group_by(Chromosome) %>% summarize(Count=n()) %>% arrange(-Count)
+```
+
+
