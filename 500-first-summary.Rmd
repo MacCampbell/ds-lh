@@ -117,21 +117,21 @@ ggplot((post %>% filter(Phenotype == "FWR" & FWR < 0.95)), aes(x=FWR))+
   geom_histogram(color="darkred", fill="red")+
   ggtitle("Posterior Probability of FWR Assigned to FWR")+
   theme_bw()+
-  theme(plot.title = element_text(hjust = 0.5))
-
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(panel.grid = element_blank())
 
 ggplot((post %>% filter(Phenotype == "MIG" & MIG < 0.95)), aes(x=MIG))+
   geom_histogram(color="darkblue", fill="blue")+
   ggtitle("Posterior Probability of MIG Assigned to MIG")+
   theme_bw()+
-  theme(plot.title = element_text(hjust = 0.5))
-
+  theme(plot.title = element_text(hjust = 0.5))+
+  theme(panel.grid = element_blank())
 
 #samples<-read_tsv("outputs/100/meta2.rda")
 #samples %>% filter(`Sequence File Name` %in% c("Ht19-31_2012_G04","Ht20-30_2012_F04")) %>% select(`Sample_ID`)
 
 ```
-What I find particularly interesting about this is that there are a lot of values around 0.50 and 0.75.    
+What I find particularly interesting about this is that there are a lot of values around 0.50 and 0.75. These values are suggestive of hybrids.    
 
 With DAPC, I can examine which variants contribute the most to the separation of phenotypes with a loading plot, and then pull out some allele frequencies.     
 
@@ -152,7 +152,7 @@ tab(genind2genpop(genind[loc=c("contig_105394_1469")]),freq=TRUE)
 ```
 
 ## Genome Wide Association Study
-I conducted two different genome wide association studies on the data (angsd and plink). These methods are largely based around using a chi-squared test, and, often a p-value of 5 x 10-8 is considered meaningful. Neither test did find significant results in the conventional sense, which often seems to occur. Here are the top results from the ANGSD association test, and a Manhattan style plot of Chromosome 58.   
+I conducted two different genome wide association studies on the data (ANGSD and PLINK). These methods are largely based around using a chi-squared test, and, often a p-value of 5 x 10-8 is considered meaningful to reduce false positives. Neither test did find significant results in the conventional sense based on a very small p-value. A lack of significant results based on a 5 x 10-8 cutoff has many precedents in the literature with several strategies on how to address it. Here are the top results from the ANGSD association test, distribution on different contigs, and a Manhattan style plot of a couple contigs.   
 To be explicit, our p - values convert like so    
  -log10(0.01) = 2   
  -log10(0.001) = 3    
@@ -186,7 +186,7 @@ ggplot(data%>%filter(Chromosome %in% c(58,114487,62,103) & log10p>=0.5))+
   theme(panel.grid = element_blank())
 ```
 
-Considering the top 1% of results shared between separate tests has been reported in the literature as a method of determine which SNPs may be associated with the trait. This approach highlights 43 SNPs for me, mostly found on the assembly contigs 114514 and 58. This includes top SNPs shown by DAPC to be able to separate the two phenotypes genetically.
+Considering the top 1% of results shared between separate tests has been reported in the literature as a method of determining which SNPs may be associated with the trait of interest. This approach highlights 43 SNPs for me, mostly found on the assembly contigs 114514 and 58. This includes top SNPs shown by DAPC to be able to separate the two phenotypes genetically.
 
 ```{r, warning=FALSE, message=FALSE, echo=FALSE}
 library(ggrepel)
@@ -215,5 +215,8 @@ ggplot(total, aes(x=log10p, y=-log10(GC)))+geom_point(color="darkgrey",alpha=0.5
 #Where are most of these found?
 comb %>% group_by(Chromosome) %>% summarize(Count=n()) %>% arrange(-Count)
 ```
+
+# What to do next?
+Examining numerous prinicpal components (PC1-PC6) while keeping in mind date, sampling locations and other variables. Another important aspect to consider is the distribution of linkage blocks, especially on those contigs with stronger associations with phenotype. I have also begun a random forest analysis to create a predictive method to assign fish to phenotype based on their genetic background.       
 
 
