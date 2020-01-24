@@ -1,0 +1,133 @@
+---
+title: "500-first-summary"
+author: "Mac Campbell"
+date: "1/23/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# First Analyses of Combined Otolith and Genetic Data
+This is meant to show some key results of what I have been doing with the two data types. I will avoid getting into a lot of details about the methodology.
+
+## Surviving Inputs
+Initially I filtered the data sets for two things. (1) Overlap between otolith and genetic data, and (2) sequencing depth of individuals with genetic data. I omitted the bottom 15% of samples in terms of coverage. This results in 72 FWR and 146 MIG fish with sequence data.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, fig.width=6, fig.height=4}
+library(tidyverse)
+samples<-read_tsv("outputs/100/meta2.rda")
+bams<-read_tsv("bamlists/full.bamlist",col_names = FALSE) %>% mutate(`Sequence File Name`=gsub(".sort-n.fixmate-m.sort.markdup-r.bam","",X1)) %>% mutate(Bams=X1)
+bams$`Sequence File Name`<-gsub("bams/","",bams$`Sequence File Name`)
+
+coverage<-read_tsv("outputs/200/full.coverage", col_names = FALSE)
+
+combined<-inner_join(bams,samples)
+
+combined$Coverage<-coverage$X1
+
+ggplot(combined)+
+  geom_histogram(aes(x=Coverage))+
+  facet_grid(.~Phenotype)+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  xlim(0,20)+
+  ggtitle("Coverage of Samples with Otolith Data")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+filtered<- combined %>% top_frac(.85, Coverage)
+
+ggplot(filtered)+
+  geom_histogram(aes(x=Coverage))+
+  facet_grid(.~Phenotype)+
+  theme_bw()+
+  theme(panel.grid = element_blank())+
+  xlim(0,20)+
+  ggtitle("Coverage of top 85% of Samples with Otolith Data")+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+filtered %>% select(Phenotype) %>% group_by(Phenotype) %>% summarize(Count=n())
+```
+
+## Basic Genetic Variation
+As a first pass, I conducted a principal component analysis of the 218 fish and 4,719 loci. This showed two samples that were very distinctive classified as MIG, perhaps misidentified fish (not shown). Plotting of the remaining 216 fish follows our expectations of no indications of genetic structuring in this species. Overall summary statistics do not appear to be different between phenotypes (output from the poppr function shown https://www.rdocumentation.org/packages/poppr/versions/2.8.3/topics/poppr).    
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE, fig.width=6}
+library(adegenet)
+library(poppr)
+load("outputs/200/recode.genind")
+load("outputs/200/filtered.rda")
+genind@pop=as.factor(filtered$Phenotype)
+drop<-c("89_1","90_1")
+gen <- genind[!row.names(genind@tab) %in% drop]
+#nInd(gen)
+
+#PCA
+X <- tab(gen, NA.method="mean")
+
+pca1 <- dudi.pca(X,scannf=FALSE,scale=FALSE)
+temp <- as.integer(pop(gen))
+myCol <- transp(c("red","blue"),.7)[temp]
+myPch <- c(15,17)[temp]
+#plot(pca1$li, col=myCol, cex=1, pch=myPch)
+
+pcdf<-as_tibble(pca1$l1) %>% rename(PC1=RS1, PC2=RS2)
+pcdf$Phenotype<-pop(gen)
+
+ggplot(pcdf)+geom_point(aes(x=PC1, y=PC2, color=Phenotype), alpha=0.75)+
+  scale_color_manual(values=c("red","blue"))+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+
+#poptable<-poppr(gen)
+#save(poptable, file="outputs/500/poptable.rda")
+load("outputs/500/poptable.rda")
+poptable
+
+```
+
+
+## Separating Phenotypes Based on Genetic Data
+A principal component analysis shows the axes of maximum variation in the data (Note: While writing this I realized I did not examine PC's 3 or 4 as these were not calculated by the function I used. I will examine those in the future). We have here two groups, and, we can maximize separation of the two groups using a discriminant analysis of principal components. As we have only two groups and no strong signal for more than that, a single discriminant function is shown.
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+
+dapc<-dapc(gen, n.pca=175, n.da=1)
+
+#Red is FWR, Blue is MIG.    
+scatter(dapc, col=c("red","blue"))
+```
+
+
+This approach separates our groups (FWR=red, MIG=blue) with individual positions shown in the carpet plot on the x-axis, density on the y-axis. The slightly bimodal density plots can be examined by looking at the posterior probability of assignment into the FWR and MIG groups. Notably, there are individuals in each group that have a 0 posterior probability of assignment to phenotypic class:     
+
+
+```{r, warning=FALSE, message=FALSE, echo=FALSE}
+
+post<-as_tibble(dapc$posterior)
+post$Phenotype<-dapc$grp
+
+ggplot((post %>% filter(Phenotype == "FWR")), aes(x=FWR))+
+  geom_histogram(color="darkred", fill="red")+
+  ggtitle("Posterior Probability of FWR Assigned to FWR")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+ggplot((post %>% filter(Phenotype == "MIG")), aes(x=MIG))+
+  geom_histogram(color="darkblue", fill="blue")+
+  ggtitle("Posterior Probability of MIG Assigned to MIG")+
+  theme_bw()+
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+
+```
+
+contrib <- loadingplot(dapc$var.contr, axis=1,
+thres=.0017, lab.jitter=0)
+
+assignplot(dapc)
+#Another way to look at the assignments
