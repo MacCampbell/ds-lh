@@ -193,6 +193,23 @@ scatter(fw)
 loadingplot(fw$var.contr, axis=1,
 thres=.0017, lab.jitter=0)
 
+#Or try to divide FWR
+##Search for signal in the mig
+migr<-sub[62:202]
+
+grps<-find.clusters(migr, n.pca=110, n.clust = 2)
+scatter(migdapc)
+migr2<-migr
+migr2@pop=grps$grp
+migdapc<-dapc(migr, pop=grps$grp, n.pca=135, n.da=1)
+loadingplot(migdapc$var.contr, axis=1,
+thres=.0017, lab.jitter=0)
+
+#And some allele frequencies
+tab(genind2genpop(migr2[loc=c("contig_54_712342")]),freq=TRUE)
+tab(genind2genpop(migr2[loc=c("contig_92_861840")]),freq=TRUE)
+tab(genind2genpop(migr2[loc=c("contig_92_885894")]),freq=TRUE)
+
 ```
 
 60 sample GWAS. I'll take these same 60 samples and see if I get a result from the GWAs.

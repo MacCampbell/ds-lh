@@ -1,0 +1,84 @@
+---
+title: "502-pca"
+author: "Mac Campbell"
+date: "1/29/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Does a PCA tell us anything good?
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Some shameless copying from Eric A.
+#' @param samples character vector with the individuals IDs in the order in which
+#' they were passed in the bamlist to angsd.
+#' @param cov covariance matrix
+covar2pcs <- function(samples, cov) {
+  
+  
+  eig <- eigen(cov, symm = TRUE)
+  PC <- as.data.frame(eig$vectors) %>%
+    as_tibble() %>%
+    setNames(sprintf("PC-%02d", 1:ncol(.)))
+  
+  samtib <- tibble(sample = samples)
+  
+  list(
+    PCs = bind_cols(samtib, PC),
+    eigevalues = eig$values
+  )
+}
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+pca_meta <- read_tsv("bamlists/216.bamlist", col_names = FALSE) %>% mutate(Bam=gsub("bams/","",X1)) %>% mutate(sample=gsub(".sort-n.fixmate-m.sort.markdup-r.bam","",Bam))
+#read in phenotypes somehow...
+phenos<-read_tsv("phenos/216.phenos", col_names = FALSE)  %>% mutate(Phenotype=ifelse(X1 == 0, "FWR", "MIG")) %>% select(Phenotype)
+pca_meta$Phenotype<-phenos$Phenotype 
+pca_meta<-pca_meta %>% select(sample, Phenotype)
+
+cov<-read_delim("outputs/500/216-pca.cov", delim=" ", col_names=FALSE) %>% as.matrix()
+pca <- covar2pcs(pca_meta$sample, cov)
+
+pca_long <- pca$PCs %>%
+  tidyr::gather(., key = "PC", "val", -sample)
+
+# then expand a grid of the possible comparisons (ordered)
+expg <- expand.grid(sample = pca$PCs$sample,
+                    PCx = sprintf("PC-%02d", 1:6),
+                    PCy = sprintf("PC-%02d", 1:6),
+                    stringsAsFactors = FALSE) %>%
+  tibble::as_tibble()
+
+# then left join the pca results onto that
+pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>%
+  dplyr::rename(val_x = val) %>%
+  dplyr::left_join(pca_long, by = c("sample", "PCy" = "PC")) %>%
+  dplyr::rename(val_y = val)
+
+pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
+  left_join(., pca_meta, by = c("sample" = "sample"))
+
+# now, that has the first 6 PCs in it.  If we want to focus on the just the
+# first 3, we could do 
+npc <- 3
+pp_meta2 <- pp_meta %>%
+  filter( (PCx %in% sprintf("PC-%02d", 1:npc)) & 
+            (PCy %in% sprintf("PC-%02d", 1:npc)) )
+
+ggplot(pp_meta2, aes(x = val_x, y = val_y, fill=Phenotype)) +
+  geom_point(pch = 21, size = 2) +
+  scale_fill_discrete(na.value = "white") + 
+  facet_grid(PCy ~ PCx, scales = "free")+
+  theme_bw()
+
+#Get variation
+eig <- eigen(cov, symm = TRUE)
+var<-eig$values/sum(eig$values)
+var[1:6]
+ggsave("outputs/500/3-3-pca.pdf", width=8, height=6)
+```

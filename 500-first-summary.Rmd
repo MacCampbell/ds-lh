@@ -219,4 +219,8 @@ comb %>% group_by(Chromosome) %>% summarize(Count=n()) %>% arrange(-Count)
 # What to do next?
 Examining numerous prinicpal components (PC1-PC6) while keeping in mind date, sampling locations and other variables. Another important aspect to consider is the distribution of linkage blocks, especially on those contigs with stronger associations with phenotype. I have also begun a random forest analysis to create a predictive method to assign fish to phenotype based on their genetic background.       
 
-
+## How about that linkage?
+```{r, warning=FALSE, message=FALSE}
+library(vcfR)
+loci<-as.loci(gen)
+```
