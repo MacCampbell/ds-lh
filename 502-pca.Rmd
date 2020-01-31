@@ -41,6 +41,13 @@ phenos<-read_tsv("phenos/216.phenos", col_names = FALSE)  %>% mutate(Phenotype=i
 pca_meta$Phenotype<-phenos$Phenotype 
 pca_meta<-pca_meta %>% select(sample, Phenotype)
 
+samples<-read_tsv("outputs/100/meta2.rda") #actually a tsv I guess
+samples<-samples %>% rename(sample=`Sequence File Name`) 
+pca_meta<-inner_join(pca_meta,samples)
+
+pca_meta$Survey<-gsub("-\\d+", "", pca_meta$Sample_ID)
+
+pca_meta$DateCollected<-gsub("\\d+-","",pca_meta$SampleDate)
 cov<-read_delim("outputs/500/216-pca.cov", delim=" ", col_names=FALSE) %>% as.matrix()
 pca <- covar2pcs(pca_meta$sample, cov)
 
@@ -61,7 +68,15 @@ pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>
   dplyr::rename(val_y = val)
 
 pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
-  left_join(., pca_meta, by = c("sample" = "sample"))
+  left_join(., pca_meta, by ="sample")
+
+ggplot(pp_meta, aes(x = val_x, y = val_y, fill=Phenotype)) +
+  geom_point(pch = 21, size = 2) +
+  scale_fill_discrete(na.value = "white") + 
+  facet_grid(PCy ~ PCx, scales = "free")+
+  theme_bw()
+
+ggsave("outputs/500/6-6-pca.pdf", width=14, height=12)
 
 # now, that has the first 6 PCs in it.  If we want to focus on the just the
 # first 3, we could do 
@@ -76,9 +91,65 @@ ggplot(pp_meta2, aes(x = val_x, y = val_y, fill=Phenotype)) +
   facet_grid(PCy ~ PCx, scales = "free")+
   theme_bw()
 
+ggsave("outputs/500/3-3-pca.pdf", width=8, height=6)
+
+
 #Get variation
 eig <- eigen(cov, symm = TRUE)
 var<-eig$values/sum(eig$values)
 var[1:6]
-ggsave("outputs/500/3-3-pca.pdf", width=8, height=6)
+```
+
+The PCA shows separation along PC1 of two groups of fish. Why?
+
+## Bringing in sample metadata
+```{r, warning=FALSE, message=FALSE}
+
+ggplot(pp_meta2, aes(x = val_x, y = val_y, fill=Phenotype)) +
+  geom_point(pch = 21, size = 2) +
+  scale_fill_discrete(na.value = "white") + 
+  facet_grid(PCy ~ PCx, scales = "free")+
+  theme_bw()
+
+ggsave("outputs/500/3-3-Pheno.pdf", width=8, height=6)
+
+ggplot(pp_meta2, aes(x = val_x, y = val_y, fill=DateCollected)) +
+  geom_point(pch = 21, size = 2, alpha=0.75) +
+  scale_fill_viridis_d(na.value = "white") + 
+  facet_grid(PCy ~ PCx, scales = "free")+
+  theme_bw()
+
+ggsave("outputs/500/3-3-SampleDate.pdf", width=8, height=6)
+
+pp_meta2$BirthYear<-factor(pp_meta2$`Birth Year (HOBBS)`, levels=c("2011","2012","2013","2014"))
+ggplot(pp_meta2, aes(x = val_x, y = val_y, fill=BirthYear)) +
+  geom_point(pch = 21, size = 2, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  facet_grid(PCy ~ PCx, scales = "free")+
+  theme_bw()
+
+ggsave("outputs/500/3-3-BirthDate.pdf", width=8, height=6)
+
+ggplot(pp_meta2, aes(x = val_x, y = val_y, fill=Survey)) +
+  geom_point(pch = 21, size = 2, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  facet_grid(PCy ~ PCx, scales = "free")+
+  theme_bw()
+
+ggsave("outputs/500/3-3-Survey.pdf", width=8, height=6)
+
+```
+Let's split this up by Survey.
+```{r, warning=FALSE, message=FALSE}
+pc12<- pp_meta %>%
+  filter( (PCx == "PC-01") & 
+            (PCy == "PC-02" ) )
+
+ggplot(pc12, aes(x = val_x, y = val_y, fill=Survey)) +
+  geom_point(pch = 21, size = 2, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  facet_wrap(. ~ Survey, scales = "fixed", ncol = 3)+
+  theme_bw()
+
+ggsave("outputs/500/pc12-by-survey.pdf")
 ```

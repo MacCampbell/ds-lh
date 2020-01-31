@@ -30,10 +30,21 @@ export OMP_NUM_THREADS=$SLURM_NTASKS
 module load benchmarks
 
 #Doing the calculations making sure sites are present in 90% of individuals.
-srun $HOME/angsd/angsd -minInd 194 -GL 1 -out $HOME/ds-lh/outputs/500/216-pca -nThreads 10 -doGlf 2 -doMajorMinor 1 -doMaf 2 -SNP_pval 1e-6 -minMapQ 30 -minQ 20 \
--bam $HOME/ds-lh/bamlists/216.bamlist
+#srun $HOME/angsd/angsd -minInd 194 -GL 1 -out $HOME/ds-lh/outputs/500/216-pca -nThreads 10 -doGlf 2 -doMajorMinor 1 -doMaf 2 -SNP_pval 1e-6 -minMapQ 30 -minQ 20 \
+#-bam $HOME/ds-lh/bamlists/216.bamlist
 
 # Generate a covariance matrix
 # For Linux
-srun python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/500/216-pca.beagle.gz -admix -o $HOME/ds-lh/outputs/500/216-pca
+#srun python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/500/216-pca.beagle.gz -admix -o $HOME/ds-lh/outputs/500/216-pca
 
+## Reusing this to generate something with a postCutoff threshold of 0.75
+srun $HOME/angsd/angsd -minInd 194 -GL 1 -out $HOME/ds-lh/outputs/500/216-pca-75 -nThreads 10 -doGlf 2 -doMajorMinor 1 -doMaf 2 -SNP_pval 1e-6 -minMapQ 30 -minQ 20 \
+-postCutoff 0.75 -bam $HOME/ds-lh/bamlists/216.bamlist 
+
+srun python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/500/216-pca-75.beagle.gz -admix -o $HOME/ds-lh/outputs/500/216-pca-75
+
+## Reusing this to generate something with a postCutoff threshold of 0.95
+srun $HOME/angsd/angsd -minInd 194 -GL 1 -out $HOME/ds-lh/outputs/500/216-pca-95 -nThreads 10 -doGlf 2 -doMajorMinor 1 -doMaf 2 -SNP_pval 1e-6 -minMapQ 30 -minQ 20 \
+-postCutoff 0.95 -bam $HOME/ds-lh/bamlists/216.bamlist 
+
+srun python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/500/216-pca-95.beagle.gz -admix -o $HOME/ds-lh/outputs/500/216-pca-95
