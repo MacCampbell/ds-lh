@@ -153,3 +153,18 @@ ggplot(pc12, aes(x = val_x, y = val_y, fill=Survey)) +
 
 ggsave("outputs/500/pc12-by-survey.pdf")
 ```
+
+Let's split this up by Plate Name
+```{r, warning=FALSE, message=FALSE}
+pc12<- pp_meta %>%
+  filter( (PCx == "PC-01") & 
+            (PCy == "PC-02" ) )
+
+ggplot(filter(pc12, Survey=="2013-SKT"), aes(x = val_x, y = val_y, fill=`Plate ID`)) +
+  geom_point(pch = 21, size = 2, alpha=0.75) +
+  scale_fill_discrete(na.value = "white") + 
+  facet_wrap(Survey ~ `Plate ID`, scales = "fixed", ncol = 3)+
+  theme_bw()
+
+ggsave("outputs/500/pc12-by-plate.pdf")
+```
