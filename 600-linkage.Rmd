@@ -1,0 +1,105 @@
+---
+title: "600-linkage"
+author: "Mac Campbell"
+date: "2/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#What about LD?
+I'm going to plug the plink LD statistics to see what they do. By default it seems to search within 1Mb.
+Looks like this is all we need to do:
+
+```{sh, eval=FALSE}
+# in outputs/600
+plink --file binary --r2  --ld-window-kb 10000 --ld-window 999999 --ld-window-r2 0 --allow-extra-chr --allow-no-sex  
+```
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+
+ld<-as_tibble(read.table(file="outputs/600/plink.ld", header = TRUE))
+
+#Cause plink didn't like our chromo names, we'll need to repopulate those
+#ld$CHR_A<-gsub("_\\d+$","",ld$SNP_A)
+#ld$CHR_B<-gsub("_\\d+$","",ld$SNP_B)
+#df<- ld %>% filter(CHR_A==CHR_B) %>% mutate(Chrom=as_factor(CHR_A))
+
+df<-ld %>% filter(CHR_A==CHR_B) %>% mutate(Chrom=as_factor(CHR_A))
+
+```
+
+Now we'll borrow some code from Matty Hale.
+
+```{r, warning=FALSE, message=FALSE}
+LDdata<-df
+LDdata$A<-LDdata$BP_A
+LDdata$B<-LDdata$BP_B
+LDdata$BP_A<-as.factor(LDdata$BP_A)
+LDdata$BP_B<-as.factor(LDdata$BP_B)
+head(LDdata)
+dim(LDdata)
+
+ggplot(filter(LDdata, Chrom %in% c("contig_58")), aes(x=BP_A,y=BP_B))+
+  geom_raster(aes(fill=R2)) +
+  facet_grid(. ~ Chrom, scales = "free") +
+  theme_bw()+
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=6))+
+  theme(axis.text.y = element_text(size=6))
+
+
+ggsave("outputs/600/58.pdf", width=10, height=8)
+  
+
+ggplot(filter(LDdata, Chrom %in% c("contig_62")), aes(x=BP_A,y=BP_B))+
+  geom_raster(aes(fill=R2)) +
+  facet_grid(. ~ Chrom, scales = "free") +
+  theme_bw()+
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=6))+
+  theme(axis.text.y = element_text(size=6))
+  
+ggsave("outputs/600/62.pdf", width=10, height=8)
+
+ggplot(filter(LDdata, Chrom %in% c("contig_62")) %>% filter(A > 5567365 & A < 7200000), aes(x=BP_A,y=BP_B))+
+  geom_raster(aes(fill=R2)) +
+  facet_grid(. ~ Chrom, scales = "free") +
+  theme_bw()+
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=6))+
+  theme(axis.text.y = element_text(size=6))+
+ 
+  
+ggsave("outputs/600/62-lim.pdf", width=10, height=8)
+
+ggplot(filter(LDdata, Chrom %in% c("contig_103")), aes(x=BP_A,y=BP_B))+
+  geom_raster(aes(fill=R2)) +
+  facet_grid(. ~ Chrom, scales = "free") +
+  theme_bw()+
+  theme(axis.text.x = element_text(angle=45, hjust=1, size=6))+
+  theme(axis.text.y = element_text(size=6))
+  
+ggsave("outputs/600/103.pdf", width=10, height=8)
+```
+Let's pull out a smaller set
+```{sh, eval=FALSE}
+
+```
+
+#dataframe without factors
+LDdataNumeric<-select(LDdata,BP_A,BP_B,R2)
+head(LDdataNumeric)
+dim(LDdataNumeric)
+ggplot(data=LDdataNumeric[1:3,],aes(x=BP_A,y=BP_B))+geom_tile(aes(fill=R2))
+LDdataNumeric[1:3,]
+
+ggplot()+geom_point(data=LDdataNumeric,aes(x=BP_A,y=BP_B,color=R2))
+
+##convert to matrix with all positions from BP_A and BP_B as rows and columns and R2 as entries
+##fill missing values with NA or 0?
+#LDdataMatrix<-spread(LDdata,BP_A,R2,fill=0)
+#rownames(LDdataMatrix)<-LDdataMatrix[,1]
+#LDdataMatrix<-select(LDdataMatrix,-BP_B)
+#LDdataMatrix[1:5,1:5]
+```
