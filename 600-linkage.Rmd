@@ -82,24 +82,71 @@ ggplot(filter(LDdata, Chrom %in% c("contig_103")), aes(x=BP_A,y=BP_B))+
   
 ggsave("outputs/600/103.pdf", width=10, height=8)
 ```
-Let's pull out a smaller set
-```{sh, eval=FALSE}
+
+# Any connection of those linkage blocks to phenotypes?
+Interesting stuff. What about relating it to (1) Association testing results, and (2) absolute allele freqs?
+
+```{r, warning=FALSE, message=FALSE}
+library(adegenet)
+library(poppr)
+load("outputs/200/recode.genind")
+load("outputs/200/filtered.rda")
+genind@pop=as.factor(filtered$Phenotype)
+drop<-c("89_1","90_1")
+gen <- genind[!row.names(genind@tab) %in% drop]
+
+plink<-read_table(file = "outputs/300/plink-gwas.assoc.adjusted")
+plink$CHR<-gsub("_\\d+$", "", plink$SNP)
+plink$A<-as.numeric(gsub("contig_\\d+_","",plink$SNP))
+c62<-filter(LDdata, R2 > 0.9)
+p62<-filter(plink, CHR %in% c("contig_62", "contig_58" ))
 
 ```
 
-#dataframe without factors
-LDdataNumeric<-select(LDdata,BP_A,BP_B,R2)
-head(LDdataNumeric)
-dim(LDdataNumeric)
-ggplot(data=LDdataNumeric[1:3,],aes(x=BP_A,y=BP_B))+geom_tile(aes(fill=R2))
-LDdataNumeric[1:3,]
+```{r, warning=FALSE, message=FALSE}
+d1<-p62 %>% filter(A %in% (c62$A ))
+d2<-p62 %>% filter(A %in% (c62$B))
+d<-rbind(d1,d2)
+```
 
-ggplot()+geom_point(data=LDdataNumeric,aes(x=BP_A,y=BP_B,color=R2))
+```{r, warning=FALSE, message=FALSE}
+tab(genind2genpop(gen[loc=d$SNP]),freq=TRUE)
+```
 
-##convert to matrix with all positions from BP_A and BP_B as rows and columns and R2 as entries
-##fill missing values with NA or 0?
-#LDdataMatrix<-spread(LDdata,BP_A,R2,fill=0)
-#rownames(LDdataMatrix)<-LDdataMatrix[,1]
-#LDdataMatrix<-select(LDdataMatrix,-BP_B)
-#LDdataMatrix[1:5,1:5]
+Right, let's take a look at this PCA again.
+
+```{r, warning=FALSE, message=FALSE}
+X <- tab(gen, NA.method="mean")
+
+pca1 <- dudi.pca(X, nf=6, scannf=FALSE,scale=FALSE)
+pcdf<-as_tibble(pca1$li)
+pcdf$Phenotype<-pop(gen)
+
+```
+
+```{r, warning=FALSE, message=FALSE}
+ggplot(pcdf)+geom_point(aes(x=Axis1, y=Axis2, color=Phenotype), alpha=0.75)+
+  scale_color_manual(values=c("red","blue"))+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+
+ggplot(pcdf)+geom_point(aes(x=Axis1, y=Axis3, color=Phenotype), alpha=0.75)+
+  scale_color_manual(values=c("red","blue"))+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+
+ggplot(pcdf)+geom_point(aes(x=Axis1, y=Axis4, color=Phenotype), alpha=0.75)+
+  scale_color_manual(values=c("red","blue"))+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+
+ggplot(pcdf)+geom_point(aes(x=Axis1, y=Axis5, color=Phenotype), alpha=0.75)+
+  scale_color_manual(values=c("red","blue"))+
+  theme_bw()+
+  theme(panel.grid=element_blank())
+
+ggplot(pcdf)+geom_point(aes(x=Axis1, y=Axis6, color=Phenotype), alpha=0.75)+
+  scale_color_manual(values=c("red","blue"))+
+  theme_bw()+
+  theme(panel.grid=element_blank())
 ```
