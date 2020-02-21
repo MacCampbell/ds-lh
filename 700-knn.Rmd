@@ -31,6 +31,7 @@ assos<-read_tsv(file="outputs/300/202.lrt0.gz") %>% arrange(-LRT) %>% head(100) 
 genos<-read_tsv("outputs/300/202.geno.gz", col_names = FALSE) %>% mutate(Site=paste(X1,X2,sep="-")) 
 genos<-genos %>% filter(Site %in% assos$Site)
 nrow(genos)
+genos$Site
 
 genos<-genos %>% select(-Site)
 genos<- genos %>% select(-X205)
@@ -104,7 +105,7 @@ top1<-plink %>% top_frac(-.005, GC)
 genos<-read_tsv("outputs/300/202.geno.gz", col_names = FALSE) %>% mutate(Site=paste(X1,X2,sep="-")) 
 genos<-genos %>% filter(Site %in% top1$Site)
 nrow(genos)
-
+genos$Site
 genos<-genos %>% select(-Site)
 genos<- genos %>% select(-X205)
 genos[genos < 0] <- NA
