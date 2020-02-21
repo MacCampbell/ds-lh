@@ -5,7 +5,7 @@ library(randomForest)
 # Based on this table and plot, the best 5% of loci have the lowest error rate
 # As a conservative measure, I'll run backward purging RF with the best 10% loci
 
-# Mac notes that all his loci have about the same error rate (0.0)
+# Mac notes that all his loci have about the same error rate (0.0), so to save time let's try the top 1% first.
 
 #Loading and creating necessary objects
 
@@ -39,7 +39,6 @@ names_best_10perc_2<-rownames(importance_rf_all_2)[which(importance_rf_all_2$imp
 names_best_10perc_3<-rownames(importance_rf_all_3)[which(importance_rf_all_3$importance > quantile(importance_rf_all_3$importance, probs=0.90))]
 names_best_10perc_unique<-unique(c(names_best_10perc_1,names_best_10perc_2,names_best_10perc_3))
 
-#################### Backward purging approach
 names_purging <- names_best_10perc_unique
 
 genotypes_purging<-class_data_corrected[,colnames(class_data_corrected) %in% names_purging]
@@ -64,7 +63,11 @@ rownames(error_rate_best)<-1:length(names_purging)
 error_rate_best[length(names_purging),] <- c(rf_purging_1$err.rate[25000],rf_purging_2$err.rate[25000],rf_purging_3$err.rate[25000])
 
 
-for (i in 1:(length(names_purging)-2)){  # RF cannot be conducted with 1 locus, which is why the loop is from 1:length(names_purging)-2
+#testing here to try to identify where it all goes wrong, and it ran to completion!!!!! AARRRGGGHHH
+#for (i in 1:(1-2)){  # RF cannot be conducted with 1 locus, which is why the loop is from 1:length(names_purging)-2
+
+# RF cannot be conducted with 1 locus, which is why the loop is from 1:length(names_purging)-2
+for (i in 1:(length(names_purging)-2)){  
   print(i)
   imp_purging_1<-data.frame(importance(rf_purging_1,type=1))
   imp_purging_2<-data.frame(importance(rf_purging_2,type=1))
@@ -93,8 +96,13 @@ for (i in 1:(length(names_purging)-2)){  # RF cannot be conducted with 1 locus, 
   rf_purging_2 = randomForest(x=na.roughfix(genotypes_purging), y = as.factor(class_data_corrected$resistance), importance=TRUE ,proximity=TRUE, mtry=length(names_keep), ntree=25000, strata=as.factor(class_data_corrected$resistance), sampsize=sample_size)
   rf_purging_3 = randomForest(x=na.roughfix(genotypes_purging), y = as.factor(class_data_corrected$resistance), importance=TRUE ,proximity=TRUE, mtry=length(names_keep), ntree=25000, strata=as.factor(class_data_corrected$resistance), sampsize=sample_size)
   error_rate_best[length(names_purging)-i,] <- c(rf_purging_1$err.rate[25000],rf_purging_2$err.rate[25000],rf_purging_3$err.rate[25000])
+  #Saving all objects
+  save.image("outputs/400/image0.rda")
+  
 }
 
+#Saving all objects
+save.image("outputs/400/image1.rda")
 
 error_rate_best$Average<-apply(error_rate_best,1,mean)
 write.csv(error_rate_best, file="outputs/400/Backward_purging_OOB-ER_classification_tutorial.csv") # Save the error rates
@@ -102,11 +110,12 @@ write.csv(error_rate_best, file="outputs/400/Backward_purging_OOB-ER_classificat
 pdf("outputs/400/error-rates-line-307.pdf")
 # Now plot the backward purging results. Omit error rates from one locus since RF cannot be conducted with just one locus
 plot(seq(2,nrow(error_rate_best),1),error_rate_best$Average[-c(1)],xlab="Number of Loci", ylab="OOB Error Rate",cex.lab=1.5,cex.axis=1.5,pch=16)
+dev.off()
 
 # Which group of loci yields the lowest error rate?
 which(error_rate_best$Average==min(error_rate_best$Average[-c(1)])) #34 loci have the lowest OOB-ER
 
-dev.off()
+
 
 num<-length(which(error_rate_best$Average==min(error_rate_best$Average[-c(1)])))
 
@@ -115,3 +124,6 @@ num<-length(which(error_rate_best$Average==min(error_rate_best$Average[-c(1)])))
 write.csv(names_all_iterations[[100]],file="outputs/400/Predictor_loci_classification_tutorial.csv")
 
 write.csv(names_all_iterations[[num]],file="outputs/400/Predictor_loci_classification_tutorial_num.csv")
+
+#Saving all objects
+save.image("outputs/400/image2.rda")

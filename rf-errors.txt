@@ -9,3 +9,13 @@
 Error in `[.data.frame`(all_imp, -dont_keep[sample(x = dont_keep, size = 1)]) :
   undefined columns selected
 Calls: [ -> [.data.frame
+
+Ok, this (404-rf-analysis.R) failed at the point where it didn't fail with the test data.
+
+I tried running a couple of loops, and it ran to completion.
+
+Hmmm... maybe the thing to do is run it in a window as opposed to RScript?
+
+
+Pasted up to the end of the loop (saving image0.rda).
+
