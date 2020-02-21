@@ -2,7 +2,7 @@
 title: "700-knn"
 author: "Mac Campbell"
 date: "2/20/2020"
-output: html_document
+output: pdf_document
 ---
 
 ```{r setup, include=FALSE}
@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 #Machine Learning
 Now with some thinking, why not try KNN classification? It's pretty simple, but maybe that is what we need.
 
-I'll folllow my previous analysis with KNN (https://github.com/MacCampbell/residual-tetrasomy/blob/master/201-classify-and-test.R) which only examined one predictor. Here, we can filter our snps to those that are most predictive, either from GWAS or RF.
+I'll folllow my previous analysis with KNN (https://github.com/MacCampbell/residual-tetrasomy/blob/master/201-classify-and-test.R) which only examined one predictor. Here, we can filter our snps to those that are most predictive, using GWAS results in this case.
 
 ```{r, warning=FALSE, message=FALSE}
 library(tidyverse)
@@ -59,7 +59,7 @@ CrossTable(x = phenos$Phenotype, y = phenos$Prediction, prop.chisq=FALSE)
 ```
 
 Our I can get a bit more sophisticated about choosing K.
-```{r, warning=FALSE, message=FALSE, eval=FALSE}
+```{r, warning=FALSE, message=FALSE, eval=TRUE}
 
 trControl <- trainControl(method = "repeatedcv",
                           number = 100,
@@ -70,7 +70,7 @@ training$Type<-train.labels
 
 fit <- train(Type ~ .,
              method     = "knn",
-             tuneGrid   = expand.grid(k = seq(from=1, to=99, by=4)),
+             tuneGrid   = expand.grid(k = seq(from=1, to=71, by=2)),
              trControl  = trControl,
              metric     = "Accuracy",
              data       = training)
@@ -81,6 +81,13 @@ phenos$OptKPred<-pred
 phenos$OptKProb<-round(attr(pred, "prob"),2)
 CrossTable(x = phenos$Phenotype, y = phenos$OptKPred, prop.chisq=FALSE)
 
+```
+
+Let's not forget to look at the fit and k
+```{r, warning=FALSE, message=FALSE}
+fit$finalModel$k
+
+ggplot(fit)
 ```
 
 #I did do GWAS with PLINK
@@ -118,3 +125,33 @@ phenos$Prediction <- smeltPred
 CrossTable(x = phenos$Phenotype, y = phenos$Prediction, prop.chisq=FALSE)
 ```
 
+And to optimize K for this one.
+```{r, warning=FALSE, message=FALSE, eval=TRUE}
+
+trControl <- trainControl(method = "repeatedcv",
+                          number = 100,
+                          repeats = 10)
+
+training<-smeltTrain
+training$Type<-train.labels
+
+fit <- train(Type ~ .,
+             method     = "knn",
+             tuneGrid   = expand.grid(k = seq(from=1, to=71, by=2)),
+             trControl  = trControl,
+             metric     = "Accuracy",
+             data       = training)
+#Note, this chose 21 the first time I tried it
+pred <- knn(train = smeltTrain, test = trans, cl = train.labels, k=fit$finalModel$k, prob = TRUE)
+
+phenos$OptKPred<-pred
+phenos$OptKProb<-round(attr(pred, "prob"),2)
+CrossTable(x = phenos$Phenotype, y = phenos$OptKPred, prop.chisq=FALSE)
+
+```
+
+```{r, warning=FALSE, message=FALSE}
+fit$finalModel$k
+
+ggplot(fit)
+```
