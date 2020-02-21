@@ -35,7 +35,10 @@ genos<-read_tsv("outputs/300/202.geno.gz", col_names = FALSE) %>% mutate(Site=pa
 genos<-genos %>% filter(Site %in% c("103-481573","58-571477","58-2863421"))
 #Omitting this site because it caused very unusual k selection results                       
  #,"105394-1469"))   
-                          
+
+#Using 66-2522582 from GWAS
+#genos<-genos %>% filter(Site %in% c("66-2522582","58-571477","58-2863421"))               
+
 nrow(genos)
 
 genos<-genos %>% select(-Site)
