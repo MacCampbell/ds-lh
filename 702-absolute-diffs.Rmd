@@ -1,0 +1,137 @@
+---
+title: "702-absolute-diffs"
+author: "Mac Campbell"
+date: "2/24/2020"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Simple way of finding predictive loci
+Greatest allele frequency differences -> should track with GWAS results.
+
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(randomForest)
+
+phenos <- read_tsv("phenos/202.phenos", col_names=FALSE) %>% rename(Pop=X1) %>% mutate(Phenotype=Pop) %>% mutate(Variant=ifelse(Pop==0, "FWR", "MIG"))
+
+genos<-read_tsv("outputs/300/202.geno.gz", col_names = FALSE) %>% mutate(Site=paste(X1,X2,sep="-")) 
+nrow(genos)
+
+genos<-genos %>% select(-Site)
+genos<- genos %>% select(-X205)
+genos[genos < 0] <- NA
+trans<-as_tibble(t(genos))
+trans<-trans[-1:-2,]
+trans<-na.roughfix(trans)
+
+```
+
+Let's try to get the data so that we can compute a difference
+
+```{r, warning=FALSE, message=FALSE}
+test<-trans
+test$Pheno<-phenos$Variant
+#test<-select(test, Pheno, V1, V2)
+
+df<-gather(test, "Locus","Freq",-Pheno)
+dff<-df %>% group_by(Pheno,Locus) %>% mutate(Sum=sum(Freq)) %>% select(Pheno, Locus, Sum) %>% unique() %>% ungroup() %>% group_by(Locus) %>% mutate(Total=sum(Sum)) %>% mutate(Diff=abs(Sum-(abs(Sum-Total)))) %>% arrange(-Diff)
+```
+
+Since I filled missing data, we don't have to treat the data I think and can look at strict differences.
+
+```{r}
+ggplot(dff)+geom_histogram(aes(x=Diff))
+head(dff %>% select(Locus,Diff)%>%unique())
+```
+
+Most loci have a difference of 10.
+
+#Which ones are the biggest freq diffs?
+```{r, warning=FALSE, message=TRUE}
+genos[1621,][1:2]
+genos[744,][1:2]
+genos[3894,][1:2]
+genos[3578,][1:2]
+genos[2825,][1:2]
+genos[4990,][1:2]
+``` 
+
+Some familiar loci.
+
+Let's use these four as predictors.    
+
+```{r, warning=FALSE, message=FALSE}
+library(ggvis)
+library(class)
+library(gmodels)
+library(viridis)
+library(caret)
+
+
+genos<-read_tsv("outputs/300/202.geno.gz", col_names = FALSE) %>% mutate(Site=paste(X1,X2,sep="-")) 
+genos<-genos %>% filter(Site %in% c("103-481573","58-571477","390-2187585","328-244717",
+                                    "217-106406","116963-17042"))
+
+nrow(genos)
+
+genos<-genos %>% select(-Site)
+genos<- genos %>% select(-X205)
+genos[genos < 0] <- NA
+trans<-as_tibble(t(genos))
+trans<-trans[-1:-2,]
+trans<-na.roughfix(trans)
+
+```
+
+Creating a training set: 
+```{r, warning=FALSE, message=FALSE}
+smeltTrain<-trans[1:122,]
+train.labels<-phenos$Variant[1:122]
+```
+
+```{r, warning=FALSE, message=FALSE}
+smeltPred <- knn(train = smeltTrain , test = trans, cl = train.labels, k=19, prob=TRUE)
+
+phenos$Prediction <- smeltPred
+phenos$Probability <-round(attr(smeltPred, "prob"),2)
+
+#How did it do?
+CrossTable(x = phenos$Phenotype, y = phenos$Prediction, prop.chisq=FALSE)
+```
+
+```{r, warning=FALSE, message=FALSE}
+
+trControl <- trainControl(method = "repeatedcv",
+                          number = 100,
+                          repeats = 10)
+
+training<-smeltTrain
+training$Type<-train.labels
+
+fit <- train(Type ~ .,
+             method     = "knn",
+             tuneGrid   = expand.grid(k = seq(from=1, to=71, by=2)),
+             trControl  = trControl,
+             metric     = "Accuracy",
+             data       = training)
+
+pred <- knn(train = smeltTrain, test = trans, cl = train.labels, k=fit$finalModel$k, prob = TRUE)
+
+phenos$OptKPred<-pred
+phenos$OptKProb<-round(attr(pred, "prob"),2)
+CrossTable(x = phenos$Phenotype, y = phenos$OptKPred, prop.chisq=FALSE)
+
+```
+
+
+
+Let's not forget to look at the fit and k
+```{r, warning=FALSE, message=FALSE}
+fit$finalModel$k
+
+ggplot(fit)
+```
