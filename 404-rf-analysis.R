@@ -84,10 +84,11 @@ for (i in 1:(length(names_purging)-2)){
   if (length(dont_keep)==1) {
     table_keep<-all_imp[-dont_keep,]
   } else {
-    #table_keep<-all_imp[-dont_keep[sample(x=dont_keep,n=1),]]
+    table_keep<-all_imp[-dont_keep[sample(x=dont_keep,n=1),]]
    # Here there is an error: Error in sample(x = dont_keep, n = 1) : unused argument (n = 1)
     # replace size = 1, 01/23/2020
-    table_keep<-all_imp[-dont_keep[sample(x=dont_keep, size=1)]]
+   
+    # table_keep<-all_imp[-dont_keep[sample(x=dont_keep, size=1)]]
   }
   names_keep<-rownames(table_keep)
   names_all_iterations[[length(names_purging)-i]]<-names_keep
