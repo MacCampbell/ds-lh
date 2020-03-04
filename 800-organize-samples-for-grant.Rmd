@@ -1,0 +1,28 @@
+---
+title: "800-organize-samples-for-grant"
+author: "Mac Campbell"
+date: "March 3, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Import and summarize
+```{r, warning=FALSE, message=FALSE}
+library(tidyverse)
+data<-read.csv(file="metadata/genetics-oto-intersect-03022020.csv")
+#creating cruise
+data$Cruise<-gsub("-\\d+$","",data$Sample_ID)
+bams<-read_tsv("bamlists/full.bamlist",col_names = FALSE)
+bams$Name<-gsub("bams/","",bams$X1)
+bams$Name<-gsub(".sort-n.fixmate-m.sort.markdup-r.bam","",bams$Name)
+
+df<-data %>% filter(Sequence.File.Name %in% bams$Name) %>% filter(Birth.Year..HOBBS. == "2012") %>% select(Birth.Year..HOBBS., Phenotype, Cruise, station, lat, lon) %>% group_by(Birth.Year..HOBBS., Phenotype, Cruise, station, lat, lon) %>% summarize(count=n() )
+sum(df$count)
+
+df
+
+write_tsv(df, "metadata/ccgp-proposal-meta.tsv")
+```
