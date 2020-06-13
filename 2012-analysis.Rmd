@@ -1,0 +1,30 @@
+---
+title: "1000-2012-analysis"
+author: "Mac Campbell"
+date: "June 12, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## 2012
+
+Let's do all these things for our 2012 data 
+
+__1__ PCA
+
+```{sh, eval=FALSE}
+
+```
+__2__ DAPC
+__2__ Association testing
+```{sh,eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012.bamlist \
+-yBin $HOME/ds-lh/phenos/2012.phenos -minMapQ 30 -minQ 20 -minInd 123 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1000/full -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta 
+```
+__3__ KNN prediction
+

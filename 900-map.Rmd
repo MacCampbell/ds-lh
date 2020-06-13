@@ -1,0 +1,150 @@
+---
+title: "900-map"
+author: "Mac Campbell"
+date: "June 12, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message = FALSE)
+```
+
+## Let's make a map of the marsh
+
+```{r}
+
+library(tidyverse)
+library(ggrepel)
+library(maps)
+library(mapdata)
+library(rgdal)
+
+cali<-map_data("state") %>% filter(region %in% c("california","oregon","nevada"))
+
+## Include Hydro
+
+load("~/Dropbox/trout/chinook/Chinook Paper/streamsSub.rda")
+riversNames<-as_tibble(read.csv(file="~/Dropbox/trout/chinook/Chinook Paper/outputs/toPlot.txt",header=T))
+riversNames$Names<-as.character(riversNames$Names)
+
+rivers<- subset(streamsSub, streamsSub$NAME %in% riversNames$Names)
+riversdf<-fortify(rivers)                               
+
+
+load("~/Dropbox/trout/chinook/Chinook Paper/polyStreamsSub.rda")
+lakes<- subset(polyStreamsSub, polyStreamsSub$NAME %in% c("Copco Lake", "Iron Gate Reservoir",
+                                                          "Lewiston Lake","Clair Engle Lake",
+                                                          "Pine Flat Reservoir","Isabella Lake",
+                                                          "Mammoth Pool Reservoir","Millerton Lake",
+                                                          "Sacramento River","Shasta Lake","Keswick Reservoir", "Lake Britton",
+                                                          "Folsom Lake",
+                                                          "Lake Natoma","Lake Oroville",
+                                                          "Little Grass Valley Reservoir","Lake Almanor",
+                                                          "San Joaquin River", "Lake Success","Lake Kaweah",
+                                                          "Pardee Reservoir","Don Pedro Reservoir","Hetch Hetchy Reservoir",
+                                                          "Lake McClure (Exchequer Reservoir)",
+                                                          "New Melones Lake","Tulloch Reservoir",
+                                                          "Upper Klamath Lake","John Boyle Reservoir","Agency Lake",
+                                                          "Lake Shastina",
+                                                          "Comanche Reservoir",
+                                                          "Clear Lake Reservoir","Tule Lake Sump",
+                                                          "Suisun Bay", "Carquinez Strait"
+                                                    
+))
+lakesdf<-fortify(lakes)
+
+
+#separate points
+#jitter <- position_jitter(width = 0.2, height = 0.2)
+map<- ggplot() +
+  geom_polygon(data=cali, aes(x=long, y=lat, group=group), color="black", fill="white", alpha=1)+
+  geom_path(data = riversdf, aes(x = long, y = lat, group=group), color="blue", size=1)+
+  geom_polygon(data=lakesdf, aes(x=long, y=lat, group=group), fill="blue", color="blue", size=2)+
+  theme_bw()+
+  theme(panel.background = element_rect(fill="blue")) +
+  xlab("Longitude")+
+  ylab("Latitude")+
+  theme(panel.grid.major = element_blank())+
+  theme(panel.grid.minor = element_blank())+
+  #geom_text_repel(data=labels, aes(x=Longitude, y=Latitude, label=Basin))+
+  coord_fixed(1.3, xlim=c(-123,-121), ylim=c(37.25,38.5))
+
+
+map
+  
+
+ggsave("outputs/900/map.pdf",width=7, height=5, device="pdf")
+
+
+
+```
+
+Let's look at the distribution of our samples:
+
+```{r}
+
+bams<-read_tsv("bamlists/216.bamlist", col_names = "Path") 
+bams$Bam<-gsub("bams/","",bams$Path)
+bams$Bam<-gsub(".sort-n.fixmate-m.sort.markdup-r.bam","",bams$Bam)
+
+meta<-read_csv("metadata/genetics-oto-intersect-03022020.csv")
+
+meta<-filter(meta, `Sequence File Name` %in% bams$Bam)
+
+plot<-meta %>% group_by(lat,lon,Phenotype) %>% mutate(Count=n()) %>% dplyr::select(lat,lon,Phenotype,Count) %>% unique()
+ggplot() + geom_point(data=plot, aes(x=lon, y=lat, fill=Phenotype, size=Count), pch=21)
+```
+
+Put that on a nice map
+```{r}
+library(ggmap)
+mapbox <- c(-122.5, 37.75, -121.25, 38.5)
+sfe <- get_map(location = mapbox, source = "stamen", maptype = "terrain", zoom = 9)
+base<-ggmap(sfe)
+```
+
+```{r}
+base+geom_point(data=plot, aes(x=lon, y=lat, fill=Phenotype, size=Count), pch=21, alpha=0.9) +
+  scale_fill_manual(values=c("red","blue"))+
+  xlab("Latitude")+
+  ylab("Longitude")+
+  coord_fixed(1.3, xlim=c(-122.35,-121.3), ylim=c(37.8, 38.5))
+
+ggsave("outputs/900/216-samples.pdf")
+```
+
+How many are there?
+```{r}
+plot %>% ungroup() %>% group_by(Phenotype) %>% mutate(Totals=sum(Count)) %>% dplyr::select(Phenotype, Totals) %>% unique()
+
+meta %>% group_by(`Birth Year (HOBBS)`, Phenotype) %>% mutate(Count=n()) %>% dplyr::select(`Birth Year (HOBBS)`, Phenotype, Count) %>% unique() %>% filter(`Birth Year (HOBBS)` == 2012)
+```
+
+```{r}
+plot2012<-meta %>% filter(`Birth Year (HOBBS)` ==2012) %>% group_by(lat,lon,Phenotype) %>% mutate(Count=n()) %>% dplyr::select(lat,lon,Phenotype,Count) %>% unique()
+
+base+geom_point(data=plot2012, aes(x=lon, y=lat, fill=Phenotype, size=Count), pch=21, alpha=0.9) +
+  scale_fill_manual(values=c("red","blue"))+
+  xlab("Latitude")+
+  ylab("Longitude")+
+  coord_fixed(1.3, xlim=c(-122.35,-121.3), ylim=c(37.8, 38.5))
+
+ggsave("outputs/900/136-samples.pdf")
+```
+
+## Make a new bamlist
+```{r}
+meta2012<-meta %>% filter(`Birth Year (HOBBS)` ==2012)
+bamlist2012<-meta2012 %>% mutate(Path=paste0("bams/",`Sequence File Name`,".sort-n.fixmate-m.sort.markdup-r.bam")) %>% dplyr::select(Path)
+
+write_csv(meta2012, "metadata/metadata-2012.csv")
+write_tsv(bamlist2012, "bamlists/2012.bamlist", col_names = FALSE)
+
+###Phenos
+phenos<-dplyr::select(meta2012,Phenotype)
+phenos$Phenotype<-gsub("FWR",0,phenos$Phenotype)
+phenos$Phenotype<-gsub("MIG",1,phenos$Phenotype)
+write_tsv(phenos, path = "phenos/2012.phenos", col_names=FALSE)
+```
+
+
