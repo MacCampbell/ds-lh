@@ -15,6 +15,29 @@ Let's do all these things for our 2012 data
 
 __1__ PCA     
 
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Some shameless copying from Eric A.
+#' @param samples character vector with the individuals IDs in the order in which
+#' they were passed in the bamlist to angsd.
+#' @param cov covariance matrix
+covar2pcs <- function(samples, cov) {
+  
+  
+  eig <- eigen(cov, symm = TRUE)
+  PC <- as.data.frame(eig$vectors) %>%
+    as_tibble() %>%
+    setNames(sprintf("PC-%02d", 1:ncol(.)))
+  
+  samtib <- tibble(sample = samples)
+  
+  list(
+    PCs = bind_cols(samtib, PC),
+    eigevalues = eig$values
+  )
+}
+```
+
+
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012.bamlist \
 -minInd 123 -GL 1 -out $HOME/ds-lh/outputs/1000/pca \
@@ -24,6 +47,46 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/1000/pca.beagle.gz -admix -o $HOME/ds-lh/outputs/1000/pca
 ```
 
+
+```{r}
+library(tidyverse)
+pca_meta<-read_csv("metadata/metadata-2012.csv") %>% rename(sample=`Sequence File Name`) 
+cov<-read_delim("outputs/1000/pca.cov", delim=" ", col_names=FALSE) %>% as.matrix()
+
+pca <- covar2pcs(meta$`Sequence File Name`, cov)
+
+pca_long <- pca$PCs %>%
+  tidyr::gather(., key = "PC", "val", -sample)
+
+# then expand a grid of the possible comparisons (ordered)
+expg <- expand.grid(sample = pca$PCs$sample,
+                    PCx = sprintf("PC-%02d", 1:6),
+                    PCy = sprintf("PC-%02d", 1:6),
+                    stringsAsFactors = FALSE) %>%
+  tibble::as_tibble()
+
+# then left join the pca results onto that
+pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>%
+  dplyr::rename(val_x = val) %>%
+  dplyr::left_join(pca_long, by = c("sample", "PCy" = "PC")) %>%
+  dplyr::rename(val_y = val)
+
+pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
+  left_join(., pca_meta, by = "sample")
+
+#drop outliers, deleted from bamlist and rerun
+#Ht20-30_2012_F04
+#Ht20-77_2012_E10
+pp_meta<-pp_meta %>% filter(!(sample %in% c("Ht20-30_2012_F04","Ht20-77_2012_E10")))
+ggplot(pp_meta, aes(x = val_x, y = val_y, fill=Phenotype)) +
+  geom_point(pch = 21, size = 2) +
+  scale_fill_discrete(na.value = "white") + 
+  facet_grid(PCy ~ PCx, scales = "free")+
+  theme_bw()
+
+ggsave("outputs/1000/6-6-pca.pdf", width=14, height=12)
+
+```
 __2__ DAPC     
 Need a plink file.
 ```{sh, eval=FALSE}
