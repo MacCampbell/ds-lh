@@ -13,18 +13,40 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 
 Let's do all these things for our 2012 data 
 
-__1__ PCA
+__1__ PCA     
 
 ```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012.bamlist \
+-minInd 123 -GL 1 -out $HOME/ds-lh/outputs/1000/pca \
+-doGlf 2  -doMajorMinor 1 -doMaf 2 -SNP_pval 1e-6 -minMapQ 30 -minQ 20 > outputs/1000/pca.out 2> outputs/1000/pca.err &
 
+#Generate Covariance Matrix
+python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/1000/pca.beagle.gz -admix -o $HOME/ds-lh/outputs/1000/pca
 ```
-__2__ DAPC
-__2__ Association testing
+
+__2__ DAPC     
+Need a plink file.
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24 -b $HOME/ds-lh/bamlists/2012.bamlist -minInd 123 \
+-out $HOME/ds-lh/outputs/1000/plink \
+-minMaf 0.05 -minMapQ 30 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 \
+-SNP_pval 1e-6 -doGeno 4 -doPost 1 -postCutoff 0.95 -doPlink 2 > outputs/1000/plink.out 2> outputs/1000/plink.err &
+```
+
+__2__ Association testing    
 ```{sh,eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012.bamlist \
 -yBin $HOME/ds-lh/phenos/2012.phenos -minMapQ 30 -minQ 20 -minInd 123 -doAsso 1 -GL 1 \
--out $HOME/ds-lh/outputs/1000/full -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
--ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta 
+-out $HOME/ds-lh/outputs/1000/assoc -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta > outputs/1000/assoc.out 2> outputs/1000/assoc.err &
 ```
-__3__ KNN prediction
+__3__ KNN prediction    
 
+Need numeric .geno.gz
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24 -b $HOME/ds-lh/bamlists/2012.bamlist \
+-minInd 123 -out $HOME/ds-lh/outputs/1000/2012-genos \
+-minMaf 0.05 -minMapQ 30 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 \
+-SNP_pval 1e-6 -doGeno 2 -doPost 1 -postCutoff 0.95 > outputs/1000/2012-genos.out 2> outputs/1000/2012-genos.err &
+```
