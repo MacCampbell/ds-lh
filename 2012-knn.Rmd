@@ -1,0 +1,123 @@
+---
+title: "2012-knn"
+author: "Mac Campbell"
+date: "June 15, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## Let's see if I can use the PLINK GWAS analysis to predict phenotype
+```{r}
+library(tidyverse)
+library(randomForest)
+library(ggvis)
+library(class)
+library(gmodels)
+library(viridis)
+library(caret)
+
+
+phenos <- read_tsv("phenos/2012.phenos", col_names=FALSE) %>% rename(Pop=X1) %>% mutate(Phenotype=Pop) %>% mutate(Variant=ifelse(Pop==0, "FWR", "MIG"))
+
+plink<-read_table(file = "outputs/1000/plink-gwas.assoc.adjusted")
+plink$Contig<-gsub("_\\d+$","",plink$SNP)
+plink$Chrom<-gsub("contig_","",plink$Contig)
+plink$Base<-gsub("contig_\\d+_","",plink$SNP)
+plink <- plink %>% mutate(Site=paste(Chrom,Base,sep="-"))
+#Getting the top .05%
+top1<-plink %>% top_frac(-.005, GC) 
+
+genos<-read_tsv("outputs/1000/2012-genos.geno.gz", col_names = FALSE) %>% mutate(Site=paste(X1,X2,sep="-")) 
+genos<-genos %>% filter(Site %in% top1$Site)
+nrow(genos)
+genos$Site
+genos<-genos %>% dplyr::select(-Site)
+genos<- genos %>% dplyr::select(-X137)
+genos[genos < 0] <- NA
+trans<-as_tibble(t(genos))
+trans<-trans[-1:-2,]
+trans<-na.roughfix(trans)
+```
+
+Getting half our data for training.
+```{r}
+smeltTrain<-trans[1:67,]
+train.labels<-phenos$Variant[1:67]
+```
+
+Naively, I can choose k for KNN from sqrt(N)
+```{r, warning=FALSE, message=FALSE}
+smeltPred <- knn(train = smeltTrain , test = trans, cl = train.labels, k=sqrt(31))
+
+phenos$Prediction <- smeltPred
+#phenos$Probability <-round(attr(smeltPred, "prob"),2)
+
+#How did it do?
+CrossTable(x = phenos$Phenotype, y = phenos$Prediction, prop.chisq=FALSE)
+```
+
+And to optimize K for this one.
+```{r, warning=FALSE, message=FALSE, eval=TRUE}
+
+trControl <- trainControl(method = "repeatedcv",
+                          number = 100,
+                          repeats = 10)
+
+training<-smeltTrain
+training$Type<-train.labels
+
+fit <- train(Type ~ .,
+             method     = "knn",
+             tuneGrid   = expand.grid(k = seq(from=1, to=41, by=2)),
+             trControl  = trControl,
+             metric     = "Accuracy",
+             data       = training)
+#Note, this chose 21 the first time I tried it
+pred <- knn(train = smeltTrain, test = trans, cl = train.labels, k=fit$finalModel$k, prob = TRUE)
+
+phenos$OptKPred<-pred
+phenos$OptKProb<-round(attr(pred, "prob"),2)
+CrossTable(x = phenos$Phenotype, y = phenos$OptKPred, prop.chisq=FALSE)
+
+```
+
+```{r, warning=FALSE, message=FALSE}
+fit$finalModel$k
+max(fit$results$Accuracy)
+
+ggplot(fit) +
+  ylim(0.8,0.95)+
+  theme_classic()
+
+ggsave("outputs/1000/knn-pred.pdf")
+```
+
+```{r}
+res<-knn(train=smeltTrain, test=trans, cl=train.labels, k=13)
+CrossTable(x = phenos$Phenotype, y = res, prop.chisq=FALSE)
+```
+Visualizing the cross table. 
+
+```{r}
+cross<-as_tibble(phenos$Phenotype) %>% rename(Phenotype=value) %>% mutate(Otolith=ifelse(Phenotype==0, "FWR", "MIG"))
+cross$Prediction<-res
+summary<-cross %>% group_by(Otolith, Prediction) %>% summarize(Count=n())
+
+ggplot(summary, aes(Otolith, Prediction)) + 
+  geom_point(aes(size = Count), colour = "darkgreen") +
+  theme_classic() +
+  geom_text(aes(label=Count), color="white", face="bold", size=10)+
+  scale_size_continuous(range=c(10,30)) +
+  theme(legend.position = "none")+
+  theme(axis.title = element_text(face="bold", size=14)) +
+  theme(axis.text = element_text(face="bold")) +
+  ggtitle("Cross Table of Phenotype and Predicted Phenotype")+
+  theme(plot.title = element_text(hjust=0.5, size=16,face="bold"))
+
+ggsave("outputs/1000/crosstable.pdf")
+  
+```
+
