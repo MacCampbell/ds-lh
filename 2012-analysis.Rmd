@@ -294,10 +294,26 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24 -GL 1 -out 
 
 srun -p high -t 12:00:00 --mem=32G --nodes=2 java -Xmx15000m -jar $HOME/beagle/beagle.jar like=$HOME/ds-lh/outputs/1000/input202.beagle.gz out=$HOME/ds-lh/outputs/1000/beagleOut202
 
-srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -doMaf 4 -beagle $HOME/ds-lh/outputs/1000/beagleOut202.input.beagle.gz.gprobs.gz -fai $HOME/genomes/hypomesus/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta.fai  -yBin $HOME/ds-lh/phenos/202.phenos -doAsso 2 -out $HOME/ds-lh/outputs/1000/impute-assoc-202
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -doMaf 4 -beagle $HOME/ds-lh/outputs/1000/beagleOut202.input202.beagle.gz.gprobs.gz -fai $HOME/genomes/hypomesus/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta.fai  -yBin $HOME/ds-lh/phenos/202.phenos -doAsso 2 -out $HOME/ds-lh/outputs/1000/impute-assoc-202
 
 ```
 
+```{sh, eval=FALSE}
+scp -P 2022 farm:/home/maccamp/ds-lh/outputs/1000/impute-assoc-202.lrt0.gz ./
+```
+
+```{r}
+d202<-read_tsv(file="outputs/1000/impute-assoc-202.lrt0.gz")
+d202 <- d202 %>% mutate(log10p = -log10(dchisq(LRT, df = 1)))  %>% filter(log10p !="Inf")
+
+d202 %>% arrange(-log10p)
+
+d202 %>% filter(Chromosome==58) %>% arrange(-log10p)
+```
+
+What's on 58?     
+58:571118-571618 : CUB and sushi domain-containing protein 2    
+116388:15713-16113 : No significant hits found     
 
 ```{r, warning=FALSE, message=FALSE}
 data<-read_tsv(file="outputs/1000/assoc.lrt0.gz")

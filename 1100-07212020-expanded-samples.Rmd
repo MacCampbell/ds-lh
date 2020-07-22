@@ -1,0 +1,91 @@
+---
+title: "1100-07212020-expanded-samples"
+author: "Mac Campbell"
+date: "July 21, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+library(tidyverse)
+```
+
+## Finding the intersect of the big data 
+```{r}
+data<-read_csv("metadata/skt_lhp_samples-07212020.csv")  %>% 
+  rename(Sample_ID=full_id) %>% rename(Phenotype=`supervised assignments`)
+
+#A couple of things, - and _ as delimiter
+#There are no leading zeros in one of our lists
+
+data<-data %>% separate(Sample_ID, sep = "_", into=c("Sample Year","Survey","ID"))
+data$ID<-as.numeric(data$ID)
+
+data<- data %>% mutate(Sample_ID = paste(`Sample Year`, Survey, ID, sep="-"))
+
+seqs<-read_csv("metadata/Field Ids.csv") %>% rename(Sample_ID=`Field ID`)
+
+meta<-left_join(seqs,data) %>% filter(Phenotype %in% c("FWR","MIG"))
+
+meta %>% select(Phenotype) %>% group_by(Phenotype) %>% summarize(Count=n())
+```
+
+That doesn't seem so great.
+```{r}
+data %>% select(`Sample Year`, Survey) %>% group_by(`Sample Year`, Survey) %>% summarize(Count=n())
+```
+
+```{sh}
+grep SKT metadata/meta.csv  | wc -l
+```
+
+What about the distribution of seqs we have?
+
+```{r}
+ seqs %>% select(Sample_ID) %>% separate(Sample_ID, sep = "-", into=c("Sample Year","Survey","ID")) %>% group_by(`Sample Year`, Survey) %>% summarize(Count=n())
+```
+
+###What to do?
+
+It looks like to me that the SKT2005-Plate3	05_168 fields may beuseful.
+
+Is there a 2005-SKT-168?
+
+```{r}
+data %>% filter(Sample_ID=="2005-SKT-168")
+```
+I'll make a separate table
+`Macs-MBP-2:metadata mac$ grep SKT meta.csv  > SKT.meta-no-field-ids.csv`
+
+```{r}
+skt<-read_csv("metadata/SKT.meta-no-field-ids.csv") %>% separate(`Sample ID`, sep="_|-",
+                                                                 into=c("Year","Ind"))
+skt<-skt %>% mutate(SamplingYear=`Birth year` + 1)
+skt<-skt %>% mutate(Sample_ID = paste(SamplingYear,"SKT",Ind, sep="-")) %>%
+  rename(`Sequence File Name` = filename)
+
+meta2<-left_join(skt,data) %>% filter(Phenotype %in% c("FWR","MIG"))
+
+```
+
+###Now to merge
+
+I should be able to downsample the data to a few interesting columns.
+
+```{r}
+metasub<-meta %>% select(`Sequence File Name`, Sample_ID, Phenotype)
+meta2sub<-meta2 %>% select(`Sequence File Name`, Sample_ID, Phenotype)
+
+sub<-bind_rows(metasub, meta2sub)
+
+bams<-select(sub, `Sequence File Name`) %>% mutate(Path=paste0("bams/",`Sequence File Name`,".sort-n.fixmate-m.sort.markdup-r.bam")) %>% select(Path)
+write_tsv(bams, path = "bamlists/expanded.bamlist", col_names = FALSE)
+
+phenos<-select(sub,Phenotype)
+phenos$Phenotype<-gsub("FWR",0,phenos$Phenotype)
+phenos$Phenotype<-gsub("MIG",1,phenos$Phenotype)
+write_tsv(phenos, path = "phenos/expanded.phenos", col_names=FALSE)
+
+#What did we end up with?
+sub %>% group_by(Phenotype) %>% summarize(Count=n())
+```
