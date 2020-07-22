@@ -73,8 +73,14 @@ meta2<-left_join(skt,data) %>% filter(Phenotype %in% c("FWR","MIG"))
 I should be able to downsample the data to a few interesting columns.
 
 ```{r}
-metasub<-meta %>% select(`Sequence File Name`, Sample_ID, Phenotype)
-meta2sub<-meta2 %>% select(`Sequence File Name`, Sample_ID, Phenotype)
+#Drop the two bad samples I know about
+#Ht20-30_2012_F04
+#Ht20-77_2012_E10
+metasub<-meta %>% filter(!`Sequence File Name` %in% c("Ht20-30_2012_F04","Ht20-77_2012_E10")) %>%
+            select(`Sequence File Name`, Sample_ID, Phenotype, `Birth Year (HOBBS)`) %>%
+  rename(BirthYear=`Birth Year (HOBBS)`)
+metasub$BirthYear<-as.numeric(metasub$BirthYear)
+meta2sub<-meta2 %>% select(`Sequence File Name`, Sample_ID, Phenotype, `Birth year`) %>% rename(BirthYear=`Birth year`)
 
 sub<-bind_rows(metasub, meta2sub)
 
@@ -87,5 +93,27 @@ phenos$Phenotype<-gsub("MIG",1,phenos$Phenotype)
 write_tsv(phenos, path = "phenos/expanded.phenos", col_names=FALSE)
 
 #What did we end up with?
+sub %>% group_by(Phenotype, BirthYear) %>% summarize(Count=n())
 sub %>% group_by(Phenotype) %>% summarize(Count=n())
+
+```
+
+#Make a PCA 
+And run association testing at 90% missing.
+402 individuals!!
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/expanded.bamlist \
+-minInd 362 -GL 1 -out $HOME/ds-lh/outputs/1100/expanded-pca \
+-doGlf 2  -doMajorMinor 1 -doMaf 2 -SNP_pval 1e-6 -minMapQ 30 -minQ 20 > outputs/1100/expanded-pca.out 2> outputs/1100/expanded-pca.err &
+
+#Generate Covariance Matrix
+python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/1200/expanded-pca.beagle.gz -admix -o $HOME/ds-lh/outputs/1100/expanded-pca
+
+##Association testing without imputation
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/expanded.bamlist \
+-yBin $HOME/ds-lh/phenos/expanded.phenos -minMapQ 30 -minQ 20 -minInd 362 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1100/assoc -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta > outputs/1100/assoc.out 2> outputs/1100/assoc.err &
+
 ```
