@@ -87,7 +87,10 @@ found$`Sequence File Name`<-gsub(".sort-n.fixmate-m.sort.markdup-r.bam","",found
 #Drop the two bad samples I know about
 #Ht20-30_2012_F04
 #Ht20-77_2012_E10
-metasub<-meta %>% filter(!`Sequence File Name` %in% c("Ht20-30_2012_F04","Ht20-77_2012_E10")) %>%
+#These two are also "funny"
+# Ht19-21_2012_E03 &  2013-SKT-6396 PC-02
+metasub<-meta %>% filter(!`Sequence File Name` %in% c("Ht20-30_2012_F04","Ht20-77_2012_E10",
+                                                      "Ht19-21_2012_E03", "Ht19-20_2012_D03")) %>%
             select(`Sequence File Name`, Sample_ID, Phenotype, `Birth Year (HOBBS)`) %>%
   rename(BirthYear=`Birth Year (HOBBS)`)
 metasub$BirthYear<-as.numeric(metasub$BirthYear)
@@ -108,7 +111,7 @@ write_tsv(phenos, path = "phenos/expanded.phenos", col_names=FALSE)
 #What did we end up with?
 sub %>% group_by(Phenotype, BirthYear) %>% summarize(Count=n())
 sub %>% group_by(Phenotype) %>% summarize(Count=n())
-
+write_csv(sub, "metadata/expanded-meta.csv")
 ```
 
 
@@ -123,7 +126,10 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -doGlf 2  -doMajorMinor 1 -doMaf 2 -SNP_pval 1e-6 -minMapQ 30 -minQ 20 > outputs/1100/expanded-pca.out 2> outputs/1100/expanded-pca.err &
 
 #Generate Covariance Matrix
-python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/1200/expanded-pca.beagle.gz -admix -o $HOME/ds-lh/outputs/1100/expanded-pca
+python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/1100/expanded-pca.beagle.gz -admix -o $HOME/ds-lh/outputs/1100/expanded-pca
+
+#Read 369 samples and 101694 sites
+#Number of sites after MAF filtering (0.05): 13478
 
 ##Association testing without imputation
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/expanded.bamlist \
@@ -132,3 +138,15 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta > outputs/1100/assoc.out 2> outputs/1100/assoc.err &
 
 ```
+
+
+##Imputation
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24 -GL 1 -out $HOME/ds-lh/outputs/1100/impute-expanded -doMajorMinor 1 -SNP_pval 1e-6 -doMaf 1 -minInd 332 -bam $HOME/ds-lh/bamlists/expanded.bamlist -doGlf 2 >outputs/1100/impute.out 2>outputs/1100/impute.err 
+
+srun -p high -t 12:00:00 --mem=32G --nodes=2 java -Xmx15000m -jar $HOME/beagle/beagle.jar like=$HOME/ds-lh/outputs/1100/impute-expanded.beagle.gz out=$HOME/ds-lh/outputs/1100/beagleOut
+
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -doMaf 4 -beagle $HOME/ds-lh/outputs/1100/beagleOut.impute-expanded.beagle.gz.gprobs.gz -fai $HOME/genomes/hypomesus/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta.fai  -yBin $HOME/ds-lh/phenos/expanded.phenos -doAsso 2 -out $HOME/ds-lh/outputs/1100/impute-assoc-expanded
+
+```
+

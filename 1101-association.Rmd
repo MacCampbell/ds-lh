@@ -1,0 +1,97 @@
+---
+title: "1101-association"
+author: "Mac Campbell"
+date: "July 22, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+library(tidyverse)
+```
+
+__1__ PCA     
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Some shameless copying from Eric A.
+#' @param samples character vector with the individuals IDs in the order in which
+#' they were passed in the bamlist to angsd.
+#' @param cov covariance matrix
+covar2pcs <- function(samples, cov) {
+  
+  
+  eig <- eigen(cov, symm = TRUE)
+  PC <- as.data.frame(eig$vectors) %>%
+    as_tibble() %>%
+    setNames(sprintf("PC-%02d", 1:ncol(.)))
+  
+  samtib <- tibble(sample = samples)
+  
+  list(
+    PCs = bind_cols(samtib, PC),
+    eigevalues = eig$values
+  )
+}
+```
+
+
+
+```{r}
+pca_meta<-read_csv("metadata/expanded-meta.csv") %>% rename(sample=`Sequence File Name`) 
+cov<-read_delim("outputs/1100/expanded-pca.cov", delim=" ", col_names=FALSE) %>% as.matrix()
+
+pca <- covar2pcs(pca_meta$Sample_ID, cov)
+
+pca_long <- pca$PCs %>%
+  tidyr::gather(., key = "PC", "val", -sample)
+
+# then expand a grid of the possible comparisons (ordered)
+expg <- expand.grid(sample = pca$PCs$sample,
+                    PCx = sprintf("PC-%02d", 1:6),
+                    PCy = sprintf("PC-%02d", 1:6),
+                    stringsAsFactors = FALSE) %>%
+  tibble::as_tibble()
+
+# then left join the pca results onto that
+pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>%
+  dplyr::rename(val_x = val) %>%
+  dplyr::left_join(pca_long, by = c("sample", "PCy" = "PC")) %>%
+  dplyr::rename(val_y = val)
+
+pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
+  left_join(., pca_meta, by = c("sample"="Sample_ID"))
+
+ggplot(pp_meta, aes(x = val_x, y = val_y, fill=Phenotype), alpha=0.75) +
+  geom_point(pch = 21, size = 2) +
+  scale_fill_discrete(na.value = "white") + 
+  scale_fill_manual(values = c("red","blue")) +
+  facet_grid(PCy ~ PCx, scales = "free")+
+  theme_bw()
+
+ggsave("outputs/1100/6-6-pca.pdf", width=14, height=12)
+
+
+
+```
+
+## How is it looking?
+
+```{r}
+df<-read_tsv(file="outputs/1100/impute-assoc-expanded.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf")
+
+thresh<- -log10(5e-8)
+arrange(df, -log10p) %>% top_n(20)
+
+topchroms<-arrange(df, -log10p) %>% top_n(20) %>% select(Chromosome) %>% unique()
+ggplot(df %>% filter(Chromosome %in% topchroms$Chromosome)) + 
+  geom_point(aes(x=Position, y=log10p, color=log10p)) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~Chromosome, ncol=5, scales="free_x") +
+  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+  geom_hline(yintercept = thresh)
+
+
+```
