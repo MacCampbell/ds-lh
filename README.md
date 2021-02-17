@@ -22,3 +22,14 @@ Ht20-6_2012_F01.sort-n.fixmate-m.sort.markdup-r.bam
 Ht20-3_2012_C01.sort-n.fixmate-m.sort.markdup-r.bam
 Ht19-7_2012_G01.sort-n.fixmate-m.sort.markdup-r.bam
 I'm going back to redo the bamlist based on the files I have.
+
+### New Reference 20210204 Version
+Let's do some comparisons between the original data and the new genome.     
+`maccamp@farm:~/genomes/hypomesus-20210204$ srun -p high -t 8:00:00 bwa index Hyp_tra_F_20210204.fa`     
+
+Things to think about:     
+__1__ Association    
+__2__ Linkage    
+__3__ Network Analysis      
+
+Should have 369 samples with sequence data, see "metadata/expanded-meta.csv". Starting 1200 series.    

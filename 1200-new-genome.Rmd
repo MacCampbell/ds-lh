@@ -1,0 +1,38 @@
+---
+title: "1200-new-genome"
+author: "Mac Campbell"
+date: "2/16/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+# New Genome
+/home/maccamp/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa    
+
+## Re-align Data
+/group/millermrgrp2/shannon/projects/DS_history/data     
+Moving to data/ and using 2012.bamlist to find the right sequences.
+
+```{r}
+bams<-read_tsv("bamlists/2012.bamlist", col_names="Bam")
+bams$Sample<-gsub("bams/|.sort-n.fixmate-m.sort.markdup-r.bam","",bams$Bam)
+#Need form Ht19-89_2012_A12_R1.fastq Ht19-89_2012_A12_R2.fastq
+bams<-bams %>% mutate(R1=paste0(Sample,"_R1.fastq")) %>% mutate(R2=paste0(Sample,"_R2.fastq")) %>% 
+  mutate(Final=paste0(R1,".sort.flt.bam"))
+
+align<-bams %>% select(R1, R2)
+write_tsv(align, "bamlists/2012-samples.tsv", col_names = FALSE)
+
+new2012<-bams %>% select(Final)
+write_tsv(new2012, "bamlists/2012-newgenome.bamlist", col_names = FALSE)
+
+```
+
+Now, we should be able to run an alignment to the 

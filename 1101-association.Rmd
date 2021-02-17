@@ -83,8 +83,15 @@ df<-read_tsv(file="outputs/1100/impute-assoc-expanded.lrt0.gz") %>% mutate(log10
 thresh<- -log10(5e-8)
 arrange(df, -log10p) %>% top_n(20)
 
-topchroms<-arrange(df, -log10p) %>% top_n(20) %>% select(Chromosome) %>% unique()
-ggplot(df %>% filter(Chromosome %in% topchroms$Chromosome)) + 
+topchroms<-arrange(df, -log10p) %>% top_n(100) %>% select(Chromosome) %>% unique()
+topnums<-arrange(df, -log10p) %>% top_n(100) %>% select(Chromosome) %>% 
+  group_by(Chromosome) %>% summarize(Count=n()) %>% arrange(-Count) 
+
+#At the moment, 58 & 393 are the most interesting
+
+arrange(df, -log10p) %>% top_n(100) %>% filter(Chromosome==58)
+
+ggplot(df %>% filter(Chromosome %in% c(58,393))) + 
   geom_point(aes(x=Position, y=log10p, color=log10p)) +
   theme_bw() +
   theme(panel.grid=element_blank()) +
@@ -95,3 +102,5 @@ ggplot(df %>% filter(Chromosome %in% topchroms$Chromosome)) +
 
 
 ```
+
+

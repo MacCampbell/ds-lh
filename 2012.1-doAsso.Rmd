@@ -1,0 +1,113 @@
+---
+title: "2012.1-doAsso"
+author: "Mac Campbell"
+date: "October 27, 2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(RColorBrewer)
+```
+
+## Association testing
+I am somewhat concerned I was to stringent for the ANGSD framework. Tried this command:
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012.bamlist \
+-yBin $HOME/ds-lh/phenos/2012.phenos -minMapQ 20 -minQ 20 -minInd 67 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1000/assoc-r -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta > \
+outputs/1000/assoc-r.out 2> outputs/1000/assoc-r.err &
+```
+
+
+```{r}
+data<-read_tsv("outputs/1000/assoc-r.lrt0.gz")
+data <- data %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p > 1)
+
+data %>% filter(log10p > 4)
+
+dd <- data %>% mutate(Index=1:n())
+
+chroms<-dd %>% group_by(Chromosome) %>% mutate(Start=min(Index), Stop=max(Index)) %>% 
+  select(Chromosome,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+outliers <- dd %>% filter(log10p >=6)
+#Make enough colors
+nb.cols <- nrow(chroms)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+
+```
+```{r, eval=FALSE}
+ggplot(dd) +
+  geom_point(data=dd, aes(x=Index, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_point(data=outliers, aes(x=Index, y=log10p), color="black", cex=0.5, alpha=0.9) +
+  geom_hline(yintercept = 6, lty=2, alpha=0.6) +
+  theme_bw() +
+  scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=6)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  ylab("-log10(p)") +
+  xlab("Chromosome") +
+  ggtitle("FWR vs MIG Comparison") +
+  theme(plot.title = element_text(hjust=0.5) )
+
+```
+
+##216 fish
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/216.bamlist \
+-yBin $HOME/ds-lh/phenos/216.phenos -minMapQ 20 -minQ 20 -minInd 67 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1000/216-assoc-r -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/ds-lh/genome/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta > \
+outputs/1000/216-assoc-r.out 2> outputs/1000/216-assoc-r.err &
+```
+
+```{r}
+d2<-read_tsv("outputs/1000/216-assoc-r.lrt0.gz")
+d2 <- d2 %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(LRT > 0)
+
+d2 %>% filter(log10p > 4) %>% arrange(-log10p)
+
+```
+
+```{r}
+d2s<-d2 %>% filter(Chromosome %in% c(114007, 58, 115, 114487,62)) %>% filter(log10p>0)
+ggplot(d2s) +
+  geom_point(aes(x=Position, y=log10p), alpha=0.5) +
+               facet_wrap(.~Chromosome, scales="free_x")
+```
+             
+
+For imputation:    
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24 -GL 1 -out $HOME/ds-lh/outputs/1000/input-216 \
+-doMajorMinor 1 -SNP_pval 1e-6 -doMaf 1  -bam $HOME/ds-lh/bamlists/216.bamlist -doGlf 2 \
+>outputs/1000/impute1-216.out 2>outputs/1000/impute1-216.err &
+
+srun -p high -t 12:00:00 --mem=32G --nodes=2 java -Xmx15000m -jar $HOME/beagle/beagle.jar like=$HOME/ds-lh/outputs/1000/input-216.beagle.gz out=$HOME/ds-lh/outputs/1000/beagleOut-216
+
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -doMaf 4 -beagle $HOME/ds-lh/outputs/1000/beagleOut-216.input-216.beagle.gz.gprobs.gz -fai $HOME/genomes/hypomesus/Hypomesus-transpacificus_10X_F_A.pseudohap2.1.fasta.fai  -yBin $HOME/ds-lh/phenos/216.phenos -doAsso 2 -out $HOME/ds-lh/outputs/1000/impute-assoc-216
+
+```
+
+```{r}
+d3<-read_tsv("outputs/1000/impute-assoc-216.lrt0.gz")
+d3 <- d3 %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(LRT > 0)
+
+d3 %>% filter(log10p > 4) %>% arrange(-log10p)
+```
+

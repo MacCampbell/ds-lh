@@ -1,0 +1,54 @@
+---
+title: "1102-local-pca"
+author: "Mac Campbell"
+date: "9/22/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+library(tidyverse)
+library(lostruct)
+```
+
+## Local PCA
+`https://github.com/petrelharp/local_pca1`
+
+```{r, eval=FALSE}
+install.packages("data.table")
+devtools::install_github("petrelharp/local_pca/lostruct")
+```
+
+Taking a .vcf and splitting into a chromsome (prefers numerically coded)
+Starting with 58
+
+```{sh, eval=FALSE}
+cp recode.vcf test.vcf
+bgzip -c test.vcf > test.vcf.gz
+tabix -p vcf test.vcf.gz 
+bcftools view -r contig_32 test.vcf.gz > 32.vcf
+bcftools view -r contig_58 test.vcf.gz > 58.vcf
+
+plink --vcf 58.vcf --recode transpose --allow-extra-chr --out 58
+plink --vcf 32.vcf --recode transpose --allow-extra-chr --out 32
+```
+
+
+```{r}
+chr58 <- read_tped("outputs/1000/58.tped")
+eigenstuff <- eigen_windows(chr58, win=11, k=2)
+windist <- pc_dist( eigenstuff, npc=2 )
+#windist has NAs in first row and column, which aren't allowed
+fit2d <- cmdscale( windist[-1,][,-1], eig=TRUE, k=2 )
+plot( fit2d$points, xlab="Coordinate 1", ylab="Coordinate 2", col=rainbow(1.2*nrow(windist)) )
+
+```
+
+```{r}
+chr32 <- read_tped("outputs/1000/32.tped")
+eigenstuff <- eigen_windows(chr32, win=14, k=2)
+windist <- pc_dist( eigenstuff, npc=2 )
+fit2d <- cmdscale( windist, eig=TRUE, k=2 )
+plot( fit2d$points, xlab="Coordinate 1", ylab="Coordinate 2", col=rainbow(1.2*nrow(windist)) )
+
+```
