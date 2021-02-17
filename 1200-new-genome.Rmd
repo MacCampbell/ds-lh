@@ -25,7 +25,7 @@ bams<-read_tsv("bamlists/2012.bamlist", col_names="Bam")
 bams$Sample<-gsub("bams/|.sort-n.fixmate-m.sort.markdup-r.bam","",bams$Bam)
 #Need form Ht19-89_2012_A12_R1.fastq Ht19-89_2012_A12_R2.fastq
 bams<-bams %>% mutate(R1=paste0(Sample,"_R1")) %>% mutate(R2=paste0(Sample,"_R2")) %>% 
-  mutate(Final=paste0(R1,".sort.flt.bam"))
+  mutate(Final=paste0("bams/",R1,".sort.flt.bam"))
 
 align<-bams %>% select(R1, R2)
 write_tsv(align, "bamlists/2012-samples.tsv", col_names = FALSE)
@@ -37,4 +37,50 @@ write_tsv(new2012, "bamlists/2012-newgenome.bamlist", col_names = FALSE)
 
 Now, we should be able to run an alignment to the new reference.    
 
-`maccamp@farm:~/ds-lh/data$ ./doAlign.sh  2012-samples.tsv $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa`    
+`maccamp@farm:~/ds-lh/data$ ./doAlign.sh 2012-samples.tsv $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa`    
+Let's do  these things for our 2012 data 
+
+__1__ PCA     
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+# Some shameless copying from Eric A.
+#' @param samples character vector with the individuals IDs in the order in which
+#' they were passed in the bamlist to angsd.
+#' @param cov covariance matrix
+covar2pcs <- function(samples, cov) {
+  
+  
+  eig <- eigen(cov, symm = TRUE)
+  PC <- as.data.frame(eig$vectors) %>%
+    as_tibble() %>%
+    setNames(sprintf("PC-%02d", 1:ncol(.)))
+  
+  samtib <- tibble(sample = samples)
+  
+  list(
+    PCs = bind_cols(samtib, PC),
+    eigevalues = eig$values
+  )
+}
+```
+
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012-newgenome.bamlist \
+-minInd 100 -GL 1 -out $HOME/ds-lh/outputs/1200/pca \
+-doGlf 2  -doMajorMinor 1 -doMaf 2 -SNP_pval 1e-6 -minMapQ 20 -minQ 20 > outputs/1200/pca.out 2> outputs/1200/pca.err &
+
+#Generate Covariance Matrix
+python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/1200/pca.beagle.gz -admix -o $HOME/ds-lh/outputs/1200/pca
+```
+
+
+__2__ Association testing    
+Phenotype file is in order.
+```{sh,eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012-newgenome.bamlist \
+-yBin $HOME/ds-lh/phenos/2012.phenos -minMapQ 20 -minQ 20 -minInd 100 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1200/assoc -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1200/assoc.out 2> outputs/1200/assoc.err &
+```
+
