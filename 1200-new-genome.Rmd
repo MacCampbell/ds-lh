@@ -75,6 +75,47 @@ python $HOME/pcangsd/pcangsd.py -beagle $HOME/ds-lh/outputs/1200/pca.beagle.gz -
 ```
 
 
+```{r}
+pca_meta<-read_csv("metadata/metadata-2012.csv") %>% rename(sample=`Sequence File Name`) 
+cov<-read_delim("outputs/1200/pca.cov", delim=" ", col_names=FALSE) %>% as.matrix()
+
+pca <- covar2pcs(pca_meta$sample, cov)
+
+pca_long <- pca$PCs %>%
+  tidyr::gather(., key = "PC", "val", -sample)
+
+# then expand a grid of the possible comparisons (ordered)
+expg <- expand.grid(sample = pca$PCs$sample,
+                    PCx = sprintf("PC-%02d", 1:6),
+                    PCy = sprintf("PC-%02d", 1:6),
+                    stringsAsFactors = FALSE) %>%
+  tibble::as_tibble()
+
+# then left join the pca results onto that
+pca_pairs <- dplyr::left_join(expg, pca_long, by = c("sample", "PCx" = "PC")) %>%
+  dplyr::rename(val_x = val) %>%
+  dplyr::left_join(pca_long, by = c("sample", "PCy" = "PC")) %>%
+  dplyr::rename(val_y = val)
+
+pp_meta <- pca_pairs %>%   # just keep the first 6 PCs around
+  left_join(., pca_meta, by = "sample")
+
+#drop outliers, deleted from bamlist and rerun
+#Ht20-30_2012_F04
+#Ht20-77_2012_E10
+pp_meta<-pp_meta %>% filter(!(sample %in% c("Ht20-30_2012_F04","Ht20-77_2012_E10")))
+ggplot(pp_meta, aes(x = val_x, y = val_y, fill=Phenotype), alpha=0.75) +
+  geom_point(pch = 21, size = 2) +
+  scale_fill_discrete(na.value = "white") + 
+  scale_fill_manual(values = c("red","blue")) +
+  facet_grid(PCy ~ PCx, scales = "free")+
+  theme_bw()
+
+ggsave("outputs/1200/6-6-pca.pdf", width=14, height=12)
+
+```
+
+
 __2__ Association testing    
 Phenotype file is in order.
 ```{sh,eval=FALSE}
@@ -82,5 +123,121 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -yBin $HOME/ds-lh/phenos/2012.phenos -minMapQ 20 -minQ 20 -minInd 100 -doAsso 1 -GL 1 \
 -out $HOME/ds-lh/outputs/1200/assoc -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1200/assoc.out 2> outputs/1200/assoc.err &
+
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012-newgenome.bamlist \
+-yBin $HOME/ds-lh/phenos/2012.phenos -minMapQ 20 -minQ 20 -minInd 67 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1200/assoc-half -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1200/assoc-half.out 2> outputs/1200/assoc-half.err &
+
 ```
 
+75% thresh:     
+lg02	11230311	A	C	0.309547	13.329619      
+lg17	4018288	T	A	0.037558	13.564628     
+lg26	9000090	A	G	0.061632	13.666326    
+lg15	2268817	C	T	0.236092	13.810386    
+lg14	14334932	G	T	0.049173	14.552699     
+lg02	11230464	T	G	0.303847	15.540977    
+lg19	473790	C	G	0.095084	15.708995     
+lg22	14194108	G	A	0.203564	16.577111    
+lg01	2467271	G	A	0.091513	16.836151    
+lg17	14078225	C	T	0.063486	17.638608    
+
+50% thresh:    
+lg02	11230311	A	C	0.309547	13.329619   
+lg17	4018288	T	A	0.037558	13.564628   
+lg26	9000090	A	G	0.061632	13.666326   
+lg15	2268817	C	T	0.236092	13.810386   
+lg14	14334932	G	T	0.049173	14.552699   
+lg02	11230464	T	G	0.303847	15.540977   
+lg19	473790	C	G	0.095084	15.708995   
+lg22	14194108	G	A	0.203564	16.577111   
+lg01	2467271	G	A	0.091513	16.836151    
+lg17	14078225	C	T	0.063486	17.638608     
+
+
+Imputation version.    
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24 -GL 1 -minMapQ 20 -minQ 20 -minInd 67 -out $HOME/ds-lh/outputs/1200/input -doMajorMinor 1 -SNP_pval 1e-6 -doMaf 1  -bam $HOME/ds-lh/bamlists/2012-newgenome.bamlist -doGlf 2 >outputs/1200/impute1.out 2>outputs/1200/impute1.err &
+
+
+#Using version 3.3.2 for compatibility with ANGSD
+srun -p high -t 12:00:00 --mem=32G --nodes=2 java -Xmx15000m -jar $HOME/beagle/beagle.jar like=$HOME/ds-lh/outputs/1200/input.beagle.gz out=$HOME/ds-lh/outputs/1200/beagleOut
+
+#Notes Warning: All data sets have > 0.07 missing alleles for the markers in the markers file.
+#         To obtain the most accurate imputation, at least one input Beagle file should be genotyped
+#         for all markers in the markers file and should have < 0.07 missing alleles.
+# 98353 markers
+
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -doMaf 4 -beagle $HOME/ds-lh/outputs/1200/beagleOut.input.beagle.gz.gprobs.gz -fai $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa.fai  -yBin $HOME/ds-lh/phenos/2012.phenos -doAsso 2 -out $HOME/ds-lh/outputs/1200/impute-assoc
+```
+impute-assoc.lrt0.gz keeps coming up with unexpected end of file. It is actually empty.    
+
+Reducing missing data...
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24 -GL 1 -minMapQ 20 -minQ 20 -minInd 127 -out $HOME/ds-lh/outputs/1200/input2 -doMajorMinor 1 -SNP_pval 1e-6 -doMaf 1  -bam $HOME/ds-lh/bamlists/2012-newgenome.bamlist -doGlf 2 >outputs/1200/impute2.out 2>outputs/1200/impute2.err &
+
+srun -p high -t 12:00:00 --mem=32G --nodes=2 java -Xmx15000m -jar $HOME/beagle/beagle.jar like=$HOME/ds-lh/outputs/1200/input2.beagle.gz out=$HOME/ds-lh/outputs/1200/beagleOut2
+
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -doMaf 4 -beagle $HOME/ds-lh/outputs/1200/beagleOut2.input2.beagle.gz.gprobs.gz -fai $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa.fai  -yBin $HOME/ds-lh/phenos/2012.phenos -doAsso 2 -out $HOME/ds-lh/outputs/1200/impute-assoc2
+```
+
+Now, let's compute the number of reads mapped for our samples and keep those that are higher (reducing sample sizes, but, hey, maybe that's the right tack.)
+
+### Get number of reads/bam file.    
+
+` ls | grep sort.flt.bam | grep -v bai | while read line; do samtools flagstat $line | grep mapped | head -n 1 >> counts.txt; done;`
+` ls | grep sort.flt.bam | grep -v bai >> counts.files.txt`
+
+```{r}
+files<-read_tsv("outputs/1200/counts.files.txt", col_names="File")
+counts<-read_tsv("outputs/1200/counts.txt", col_names="Counts")
+counts$Counts<-gsub(" + 0 mapped (100.00% : N/A)", "", counts$Counts, fixed = TRUE)
+phenos<-read_tsv("phenos/2012.phenos", col_name="Pheno")
+comb<-bind_cols(files, counts)
+
+bams$File<-gsub("bams/", "",bams$Final)
+
+bams<-bams %>% left_join(comb)
+bams<-bind_cols(bams, phenos)
+```
+
+Now to filter.
+
+```{r}
+bams$Counts<-as.numeric(bams$Counts)
+```
+
+```{r}
+ggplot(bams) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~Pheno)
+```
+
+```{r}
+tops<-bams %>% top_frac(.5, Counts)
+tops %>% group_by(Pheno) %>% summarize(Count=n())
+ggplot(tops) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~Pheno) +
+  xlim(0, max(bams$Counts))
+```
+
+
+Create new bamlist and pheno list.
+```{r}
+new05<-tops %>% select(Final)
+write_tsv(new05, "bamlists/2012-newgenome05.bamlist", col_names = FALSE)
+
+new05pheno<-tops %>% select(Pheno)
+write_tsv(new05pheno, "phenos/2012-newgenome05.phenos", col_names = FALSE)
+```
+
+Association testing:
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012-newgenome05.bamlist \
+-yBin $HOME/ds-lh/phenos/2012-newgenome05.phenos -minMapQ 20 -minQ 20 -minInd 100 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1200/assoc05 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1200/assoc05.out 2> outputs/1200/assoc05.err &
+```
