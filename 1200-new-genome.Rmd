@@ -24,7 +24,7 @@ Moving to data/ and using 2012.bamlist to find the right sequences.
 bams<-read_tsv("bamlists/2012.bamlist", col_names="Bam")
 bams$Sample<-gsub("bams/|.sort-n.fixmate-m.sort.markdup-r.bam","",bams$Bam)
 #Need form Ht19-89_2012_A12_R1.fastq Ht19-89_2012_A12_R2.fastq
-bams<-bams %>% mutate(R1=paste0(Sample,"_R1.fastq")) %>% mutate(R2=paste0(Sample,"_R2.fastq")) %>% 
+bams<-bams %>% mutate(R1=paste0(Sample,"_R1")) %>% mutate(R2=paste0(Sample,"_R2")) %>% 
   mutate(Final=paste0(R1,".sort.flt.bam"))
 
 align<-bams %>% select(R1, R2)
@@ -35,4 +35,6 @@ write_tsv(new2012, "bamlists/2012-newgenome.bamlist", col_names = FALSE)
 
 ```
 
-Now, we should be able to run an alignment to the 
+Now, we should be able to run an alignment to the new reference.    
+
+`maccamp@farm:~/ds-lh/data$ ./doAlign.sh  2012-samples.tsv $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa`    
