@@ -340,6 +340,29 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1200/assoc05-2.out 2> outputs/1200/assoc05-2.err &
 ```
 
+```{r}
+test1<-read_tsv(file="outputs/1200/assoc05-2.lrt0.gz") %>%
+  filter(LRT != -999) %>%
+  mutate(log10p = -log10(dchisq(LRT, df = 1)))  %>% 
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni")) %>%
+  arrange(adjp, -log10p)
+
+test1
+```
+
+`maccamp@farm:~/ds-lh$ gunzip -c outputs/1200/assoc05-2.lrt0.gz | sort -k 7 -n | tail`    
+lg09	7338206	C	T	0.149206	67	11.798629	49/14/1     
+lg18	3706822	A	T	0.348031	67	12.229991	24/34/3    
+lg21	47867	C	T	0.279261	67	12.441311	26/14/0   
+lg08	1030692	C	T	0.155987	67	12.640756	42/15/0    
+lg22	15066999	T	C	0.492235	67	12.944254	3/31/10    
+lg04	2048952	G	A	0.281251	67	12.950604	33/29/4   
+lg01	12323378	C	G	0.203879	67	13.966591	28/23/0   
+lg04	9935218	T	G	0.160342	67	15.772572	36/16/0   
+lg02	11230311	A	C	0.293849	67	19.098647	24/17/1   
+lg02	11230464	T	G	0.317309	67	19.659466	35/21/10   
 
 Association testing, 67 individuals 75% thresh, 50.25, but, doAsso 2 and minCount = 5:
 ```{sh, eval=FALSE}
@@ -349,6 +372,17 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1200/assoc05-2-min.out 2> outputs/1200/assoc05-2-min.err &
 ```
 
+```{r}
+test2<-read_tsv(file="outputs/1200/assoc05-2-min.lrt0.gz") %>%
+  filter(LRT != -999) %>%
+  mutate(log10p = -log10(dchisq(LRT, df = 1)))  %>% 
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni")) %>%
+  arrange(adjp, -log10p)
+
+test2
+```
 
 
 Imputation version. Maybe I should relax the -minInd flag next time (-minInd 63)     

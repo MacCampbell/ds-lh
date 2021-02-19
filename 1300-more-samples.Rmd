@@ -1,0 +1,45 @@
+---
+title: '1300-more-samples'
+author: "Mac Campbell"
+date: "February 19, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## Across years
+We should be able to expand the association testing across years.  What do we have?
+
+```{r}
+metaall<-read_csv("metadata/expanded-meta.csv")
+
+metaall %>% group_by(Phenotype) %>% summarize(Count=n())
+```
+
+Let's round up those raw fastqs and align to the genome.     
+
+__1__ Find samples     
+__2__ Align    
+__3__ Filter low-coverage samples    
+__4__ Try association testing    
+
+Already have 2012 aligned.    
+```{r}
+toalign<-metaall %>% 
+  mutate(R1=paste0(`Sequence File Name`,"_R1")) %>% mutate(R2=paste0(`Sequence File Name`,"_R2")) %>% 
+  mutate(Final=paste0("bams/",R1,".sort.flt.bam"))
+
+align<-toalign %>% filter(BirthYear != 2012) %>% select(R1, R2)
+write_tsv(align, "bamlists/samples.tsv", col_names = FALSE)
+
+new<-toalign %>% select(Final)
+write_tsv(new, "bamlists/newgenome.bamlist", col_names = FALSE)
+
+```
+
