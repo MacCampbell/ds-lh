@@ -234,10 +234,153 @@ new05pheno<-tops %>% select(Pheno)
 write_tsv(new05pheno, "phenos/2012-newgenome05.phenos", col_names = FALSE)
 ```
 
-Association testing:
+Association testing, 67 individuals 75% thresh, 50.25:
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012-newgenome05.bamlist \
--yBin $HOME/ds-lh/phenos/2012-newgenome05.phenos -minMapQ 20 -minQ 20 -minInd 100 -doAsso 1 -GL 1 \
+-yBin $HOME/ds-lh/phenos/2012-newgenome05.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 1 -GL 1 \
 -out $HOME/ds-lh/outputs/1200/assoc05 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1200/assoc05.out 2> outputs/1200/assoc05.err &
 ```
+lg01	2467271	G	A	0.077797	13.031384   
+lg23	5832618	A	T	0.113305	13.124640   
+lg09	7338206	C	T	0.149206	13.275099    
+lg11	11148662	G	A	0.074642	13.720920     
+scaffold_314	6295	C	A	0.074632	13.721667     
+lg21	47867	C	T	0.279261	13.899696    
+scaffold_314	6080	A	T	0.076713	14.010966     
+lg10	13089180	A	C	0.078174	14.150752    
+lg02	11230311	A	C	0.293849	21.220818     
+lg02	11230464	T	G	0.317309	26.532230     
+
+Let's check out lg02.
+
+```{r}
+df<-read_tsv(file="outputs/1200/assoc05.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf")
+
+arrange(df, -log10p) %>% top_n(20)
+df2 <- filter(df, grepl("lg",Chromosome))
+highest<-df2 %>% top_frac(.001,log10p) 
+
+ggplot(df2) +
+  geom_point(aes(x=Position, y=log10p), alpha=0.5, fill="darkgrey") +
+  geom_point(data=highest, aes(x=Position,y=log10p), pch=21, fill="cyan") +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~Chromosome, ncol=10, scales="free_x") +
+#  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+```
+
+What about significance thresholds?
+https://bmcgenomics.biomedcentral.com/track/pdf/10.1186/s12864-019-6324-7.pdf   
+"Bonferroni test P < 0.05/n or P < 0.01/n (n = 278), that
+was -log10P > 3.75 or -log10P > 4.44, was used to determine the significant or extremely significant SNP-trait
+associations."   
+278 individuals....
+
+```{r}
+-log10(0.05/278)
+```
+
+```{r}
+thresh1=-log10(.05/67)
+thresh1
+thresh2=-log10(.01/67)
+thresh2
+```
+
+```{r}
+significant<-df2 %>% filter(log10p > thresh1) %>% filter(log10p<thresh2)
+highlysignificant<-df2 %>% filter(log10p > thresh2)
+
+nrow(highlysignificant)
+```
+
+```{r}
+ggplot(df2) +
+  geom_point(aes(x=Position, y=log10p), alpha=0.5, fill="darkgrey") +
+  geom_point(data=significant, aes(x=Position,y=log10p), pch=21, fill="turquoise4", alpha=0.9) +
+  geom_point(data=highlysignificant, aes(x=Position,y=log10p), pch=21, fill="cyan", alpha=0.9) +
+  geom_hline(yintercept=thresh1) +
+  geom_hline(yintercept=thresh2, alpha=0.75, linetype="dotted") +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~Chromosome, ncol=10, scales="free_x") +
+#  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+ggsave("outputs/1200/assoc05-new-genome.pdf")
+```
+
+Adjusted p values. Removing non-sensical values, doesn't seen to matter.    
+
+```{r}
+dff<-read_tsv(file="outputs/1200/assoc05.lrt0.gz") %>%
+  mutate(log10p = -log10(dchisq(LRT, df = 1)))  %>% filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+dff %>% arrange(adjp, -log10p) %>% head()                                       
+```
+Iso says, since the sample size is so small to sue the top sites. Also to try doAsso 2 and specify a model (lower mean counts to four or five to accomodate for less samples).
+
+Iso would take the top SNPs and genotype them (20?) and polarize if possible, but at least genotype and make a heatmap. Major/minor. Homozygous Major, heterozygous, homozygous minor
+individuals on the Y
+Position on the X
+
+Random Forest?    
+
+Association testing, 67 individuals 75% thresh, 50.25, but, doAsso 2:
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012-newgenome05.bamlist \
+-yBin $HOME/ds-lh/phenos/2012-newgenome05.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 2 -doPost 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1200/assoc05-2 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1200/assoc05-2.out 2> outputs/1200/assoc05-2.err &
+```
+
+
+Association testing, 67 individuals 75% thresh, 50.25, but, doAsso 2 and minCount = 5:
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012-newgenome05.bamlist \
+-yBin $HOME/ds-lh/phenos/2012-newgenome05.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 2 -doPost 1 -minCount 5 -GL 1 \
+-out $HOME/ds-lh/outputs/1200/assoc05-2-min -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1200/assoc05-2-min.out 2> outputs/1200/assoc05-2-min.err &
+```
+
+
+
+Imputation version. Maybe I should relax the -minInd flag next time (-minInd 63)     
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24 -GL 1 -out $HOME/ds-lh/outputs/1200/impute05 -doMajorMinor 1 -SNP_pval 1e-6 -doMaf 1 -bam $HOME/ds-lh/bamlists/2012-newgenome05.bamlist -doGlf 2  -rf outputs/1200/regions.txt  >outputs/1200/impute05.out 2>outputs/1200/impute05.err &
+
+srun -p high -t 12:00:00 --mem=32G --nodes=2 java -Xmx15000m -jar $HOME/beagle/beagle.jar like=$HOME/ds-lh/outputs/1200/impute05.beagle.gz out=$HOME/ds-lh/outputs/1200/beagleOut05
+
+#problem with scaffold naming using rf earlier, keeping just lgs results in 55851 sites    
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -doMaf 4 -beagle $HOME/ds-lh/outputs/1200/beagleOut05.impute05.beagle.gz.gprobs.gz -fai $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa.fai -yBin $HOME/ds-lh/phenos/2012-newgenome05.phenos -doAsso 2 -out $HOME/ds-lh/outputs/1200/impute-assoc05
+```
+
+With minInd 63    
+lg12	10551688	T	C	0.317124	67	11.167774	32/24/7   
+lg18	2074064	G	A	0.172016	67	11.508336	45/21/1   
+lg22	15066730	G	A	0.341659	67	11.549593	22/43/1    
+lg04	2048952	G	A	0.265374	67	11.800949	34/27/4   
+lg08	1030692	C	T	0.158623	67	12.226135	41/17/0    
+lg22	15066999	C	T	0.476485	67	12.249267	20/25/15   
+lg22	15066982	C	T	0.485710	67	12.760548	19/25/19   
+lg01	12323378	C	G	0.200593	67	14.367239	33/21/0   
+lg04	9935218	T	G	0.159199	67	15.686034	36/16/0    
+lg02	11230464	T	G	0.317326	67	19.649618	35/21/10     
+
+Without minInd    
+lg22	15066982	C	T	0.479160	67	11.869876	19/26/18   
+lg04	2048952	G	A	0.267095	67	12.058967	32/27/4   
+lg08	1030692	C	T	0.157656	67	12.067328	41/17/0    
+lg21	47867	C	T	0.277992	67	12.334598	29/14/2    
+lg18	3717798	A	G	0.327699	67	12.610455	28/29/4   
+lg18	3717818	C	T	0.327604	67	12.622021	28/29/4    
+lg01	12323378	C	G	0.207421	67	13.199519	28/24/0    
+lg04	9935218	T	G	0.159981	67	15.746009	36/16/0    
+lg02	11230311	A	C	0.314986	67	19.320573	35/20/11    
+lg02	11230464	T	G	0.320277	67	19.766663	35/21/11     
