@@ -45,6 +45,7 @@ write_tsv(new, "bamlists/newgenome.bamlist", col_names = FALSE)
 
 `ln -s ../bamlists/samples.tsv .`    
 `maccamp@farm:~/ds-lh/data$ ./doAlign.sh samples.tsv $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa` 
+`maccamp@farm:~/ds-lh/data$ ./doAlign.sh finishers.tsv $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa` 
 
 We should have all the seqs now.
 
@@ -63,6 +64,42 @@ counted$`Sequence File Name`<-gsub("_R1.sort.flt.bam","",counted$File)
 ```
 
 ```{r}
-reads<-left_join(metaall, counted)
+reads<-left_join(metaall, counted) %>%
+  mutate(R1=paste0(`Sequence File Name`,"_R1")) %>% 
+  mutate(R2=paste0(`Sequence File Name`,"_R2"))  %>%
+  mutate(Pheno=ifelse(Phenotype=="MIG",0,1))
+reads$Counts<-as.numeric(reads$Counts)
 write_csv(reads, "outputs/1300/reads.csv")
 ```
+
+Filtering
+
+```{r}
+tops<-reads %>% top_frac(.7, Counts)
+tops %>% group_by(Pheno) %>% summarize(Count=n())
+ggplot(tops) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~Pheno) +
+  xlim(0, max(bams$Counts))
+```
+
+Write new bamlist and phenotype files:
+
+```{r}
+bamlist<-tops %>% select(File) %>% mutate(Path=paste0("bams/",File)) %>% select(Path)
+write_tsv(bamlist, "bamlists/newgenome-all-70.bamlist", col_names=FALSE)
+
+phenos<-tops %>% select(Pheno) 
+write_tsv(phenos, "phenos/newgenome-all-70.phenos", col_names=FALSE)
+```
+
+256 individuals, 192 for 75 thresh.
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/newgenome-all-70.bamlist \
+-yBin $HOME/ds-lh/phenos/newgenome-all-70.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1300/assoc-70 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1300/assoc70.out 2> outputs/1300/assoc70.err &
+```
+
+
