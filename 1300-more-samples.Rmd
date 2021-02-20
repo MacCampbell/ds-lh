@@ -29,13 +29,13 @@ __2__ Align
 __3__ Filter low-coverage samples    
 __4__ Try association testing    
 
-Already have 2012 aligned.    
+Already have 2012 aligned, but apparently was missing a couple.    
 ```{r}
 toalign<-metaall %>% 
   mutate(R1=paste0(`Sequence File Name`,"_R1")) %>% mutate(R2=paste0(`Sequence File Name`,"_R2")) %>% 
   mutate(Final=paste0("bams/",R1,".sort.flt.bam"))
 
-align<-toalign %>% filter(BirthYear != 2012) %>% select(R1, R2)
+align<-toalign %>% select(R1, R2)
 write_tsv(align, "bamlists/samples.tsv", col_names = FALSE)
 
 new<-toalign %>% select(Final)
@@ -43,3 +43,26 @@ write_tsv(new, "bamlists/newgenome.bamlist", col_names = FALSE)
 
 ```
 
+`ln -s ../bamlists/samples.tsv .`    
+`maccamp@farm:~/ds-lh/data$ ./doAlign.sh samples.tsv $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa` 
+
+We should have all the seqs now.
+
+### Get number of reads/bam file.    
+
+` ls | grep sort.flt.bam | grep -v bai | while read line; do samtools flagstat $line | grep mapped | head -n 1 >> counts.txt; done;`
+` ls | grep sort.flt.bam | grep -v bai >> counts.files.txt`
+
+```{r}
+files<-read_tsv("outputs/1300/counts.files.txt", col_names="File")
+counts<-read_tsv("outputs/1300/counts.txt", col_names="Counts")
+counts$Counts<-gsub(" + 0 mapped (100.00% : N/A)", "", counts$Counts, fixed = TRUE)
+
+counted<-bind_cols(files,counts)
+counted$`Sequence File Name`<-gsub("_R1.sort.flt.bam","",counted$File)
+```
+
+```{r}
+reads<-left_join(metaall, counted)
+write_csv(reads, "outputs/1300/reads.csv")
+```

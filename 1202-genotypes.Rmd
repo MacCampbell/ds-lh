@@ -1,0 +1,72 @@
+---
+title: "1202-genotypes"
+author: "Mac Campbell"
+date: "February 19, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message = FALSE)
+```
+
+
+```{r}
+library(tidyverse)
+```
+
+## Let's look at the genotypes of highly associated snps.
+
+```{r}
+df<-read_tsv(file="outputs/1200/assoc05.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf")
+
+arrange(df, -log10p) %>% top_n(20)
+df2 <- filter(df, grepl("lg",Chromosome))
+highest<-df2 %>% top_frac(.001,log10p) 
+```
+```{r}
+load("outputs/1201/snps.rda")
+##replace NA with the most frequent genotype
+gen<-snps
+```
+
+Get col_names we want
+```{r}
+cols<-df2 %>% top_frac(.1,log10p)  %>% mutate(Cols=paste0(Chromosome, "_",Position,"_",Major))
+names<-colnames(gen)[colnames(gen) %in% cols$Cols]
+
+cols %>% filter(Cols %in% names)
+```
+
+Wow, need to call genotypes differently as these don't show up.
+
+```{r}
+phenos<-read_tsv("phenos/2012-newgenome05.phenos", col_names="Pheno")
+sites<-gen %>% select(c(FID, names)) 
+sites<-bind_cols(phenos,sites)
+```
+
+```{r}
+tidy<-sites %>% gather(key=Site, value=Genotype, 3:7) %>% 
+  mutate(State=ifelse(Genotype == 0, "Homozygous Major",
+                      ifelse(Genotype==1, "Heterozygous",
+                              ifelse(Genotype==2, "Homozygous Minor",
+                                     "NA"))))
+```
+
+```{r}
+tidy2<-tidy %>% arrange(Pheno, Site, FID)
+tidy2$FID<-as.factor(tidy2$FID)
+
+ggplot(tidy2) + 
+  geom_raster(aes(x=Site, y=FID, fill=State)) +
+  facet_grid(Pheno~., scales="free_y") +
+  theme_bw() +
+  scale_fill_viridis_d() +
+  theme(axis.text.x = element_text(hjust=1, angle=45)) +
+  theme(axis.text.y = element_blank()) +
+  theme(axis.ticks.y = element_blank()) +
+  theme(panel.grid=element_blank())
+ggsave("outputs/1202/genotypes.jpeg", width=7, height = 6)
+```
+
