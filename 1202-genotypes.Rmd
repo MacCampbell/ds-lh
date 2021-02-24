@@ -22,51 +22,95 @@ df<-read_tsv(file="outputs/1200/assoc05.lrt0.gz") %>% mutate(log10p = -log10(dch
 
 arrange(df, -log10p) %>% top_n(20)
 df2 <- filter(df, grepl("lg",Chromosome))
-highest<-df2 %>% top_frac(.001,log10p) 
+highest<-df2 %>% top_frac(.001,log10p) %>% mutate(Location=paste0(Chromosome,"_",Position))
 ```
 ```{r}
 load("outputs/1201/snps.rda")
 ##replace NA with the most frequent genotype
 gen<-snps
-```
-
-Get col_names we want
-```{r}
-cols<-df2 %>% top_frac(.1,log10p)  %>% mutate(Cols=paste0(Chromosome, "_",Position,"_",Major))
-names<-colnames(gen)[colnames(gen) %in% cols$Cols]
-
-cols %>% filter(Cols %in% names)
-```
-
-Wow, need to call genotypes differently as these don't show up.
-
-```{r}
 phenos<-read_tsv("phenos/2012-newgenome05.phenos", col_names="Pheno")
-sites<-gen %>% select(c(FID, names)) 
-sites<-bind_cols(phenos,sites)
+
+gen2<-bind_cols(phenos, gen)
+#Make a tidy df
+gen3<-gen2 %>% gather(key=Site, value=Genotype, 3:11168)
+gen4<-separate(gen3, Site, into=c("Chromosome","Position","Base"), remove = FALSE) %>% mutate(Location=paste0(Chromosome,"_",Position))
 ```
 
 ```{r}
-tidy<-sites %>% gather(key=Site, value=Genotype, 3:7) %>% 
-  mutate(State=ifelse(Genotype == 0, "Homozygous Major",
+gen4$Position<-as.numeric(gen4$Position)
+combo<-left_join(highest, gen4)
+```
+
+
+```{r}
+tidy<-combo %>% mutate(State=ifelse(Genotype == 0, "Homozygous Major",
                       ifelse(Genotype==1, "Heterozygous",
                               ifelse(Genotype==2, "Homozygous Minor",
                                      "NA"))))
+
+tidy$State<-factor(tidy$State, levels=c("Homozygous Major","Heterozygous","Homozygous Minor"))
+tidy<-tidy %>% mutate(Phenotype=ifelse(Pheno==0, "FWR", "MIG"))
 ```
 
 ```{r}
-tidy2<-tidy %>% arrange(Pheno, Site, FID)
+tidy2<-tidy %>% arrange(Pheno, Location, FID)
 tidy2$FID<-as.factor(tidy2$FID)
-
-ggplot(tidy2) + 
-  geom_raster(aes(x=Site, y=FID, fill=State)) +
-  facet_grid(Pheno~., scales="free_y") +
+mysites<-c("lg02_11230464","lg10_13089180","lg11_11148662","lg09_7338206",
+                                        "lg01_2467271","lg04_2048952")
+ggplot(tidy2 %>% filter(Location %in% mysites)) + 
+  geom_raster(aes(x=Location, y=FID, fill=State)) +
+  facet_grid(Phenotype~., scales="free_y") +
   theme_bw() +
-  scale_fill_viridis_d() +
+  scale_fill_viridis_d(direction = -1) +
   theme(axis.text.x = element_text(hjust=1, angle=45)) +
   theme(axis.text.y = element_blank()) +
   theme(axis.ticks.y = element_blank()) +
   theme(panel.grid=element_blank())
-ggsave("outputs/1202/genotypes.jpeg", width=7, height = 6)
+ggsave("outputs/1202/genotypes.jpeg", width=7, height = 8)
+```
+```{r}
+dff<-read_tsv(file="outputs/1200/assoc05.lrt0.gz") %>%
+  mutate(log10p = -log10(dchisq(LRT, df = 1)))  %>% filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(Location=paste0(Chromosome,"_",Position))
+
+dff %>% arrange(adjp, -log10p) %>%
+  filter(Location %in% mysites) %>% select(Chromosome, Position, Frequency, LRT, log10p, p, adjp)
 ```
 
+##Heatmap
+Why not select a few columns of interest and subset
+```{r}
+library(gplots)
+library(viridis)
+sitelist<-select(tidy, Site, log10p) %>% unique() %>% na.omit() 
+#%>% top_n(15, wt=log10p)
+
+gensites<-gen[colnames(gen) %in% sitelist$Site]
+
+atable<-as_tibble(colnames(gensites)) %>% separate(value, into=c("Chromosome", "Site", "Base")) %>%
+  mutate(Position=paste0(Chromosome,"  ",Site))
+  
+phenotypes<-read_tsv("phenos/2012-newgenome05.phenos", col_names="Pheno") %>% 
+  mutate(Phenotype=ifelse(Pheno==0, "FWR", "MIG")) %>%
+  mutate(Color=ifelse(Pheno==0, "red", "blue"))
+
+```
+```{r}
+pdf("outputs/1202/heatmap-reordered-sites.pdf", width=11, height=14)
+heatmap.2(as.matrix(gensites), labCol=atable$Position, labRow=phenotypes$Phenotype, cexRow = 0.6,
+          colRow = phenotypes$Color,
+          trace="none",
+          key=FALSE, dendrogram=c("row"), srtCol=45, margins = c(10,5), na.color=viridis(1),
+          col=viridis)
+dev.off()
+
+pdf("outputs/1202/heatmap.pdf", width=11, height=14)
+heatmap.2(as.matrix(gensites), labCol=atable$Position, labRow=phenotypes$Phenotype, cexRow = 0.6,
+          colRow = phenotypes$Color,
+          trace="none",
+          key=FALSE, dendrogram=c("row"), srtCol=45, margins = c(10,5), na.color=viridis(1),
+          Colv = FALSE, col=viridis)
+dev.off()
+```

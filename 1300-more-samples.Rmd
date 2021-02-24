@@ -80,7 +80,7 @@ tops %>% group_by(Pheno) %>% summarize(Count=n())
 ggplot(tops) +
   geom_histogram(aes(Counts)) +
   facet_wrap(.~Pheno) +
-  xlim(0, max(bams$Counts))
+  xlim(0, max(tops$Counts))
 ```
 
 Write new bamlist and phenotype files:
@@ -97,9 +97,56 @@ write_tsv(phenos, "phenos/newgenome-all-70.phenos", col_names=FALSE)
 
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/newgenome-all-70.bamlist \
--yBin $HOME/ds-lh/phenos/newgenome-all-70.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 1 -GL 1 \
+-yBin $HOME/ds-lh/phenos/newgenome-all-70.phenos -minMapQ 20 -minQ 20 -minInd 192 -doAsso 1 -GL 1 \
 -out $HOME/ds-lh/outputs/1300/assoc-70 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1300/assoc70.out 2> outputs/1300/assoc70.err &
 ```
 
+maccamp@farm:~/ds-lh$ gunzip -c outputs/1300/assoc-70.lrt0.gz | sort -k 6 -n | tail      
+lg10	4186153	C	T	0.062035	13.504797    
+lg01	9783773	A	G	0.069597	13.570257    
+scaffold_107	412831	C	A	0.181839	13.601363    
+scaffold_318	67113	G	T	0.035703	13.812074    
+lg07	9442970	C	A	0.014335	13.938829   
+scaffold_416	47792	T	G	0.266788	14.006773    
+lg11	19176403	C	T	0.041767	14.099637    
+lg23	34011	G	A	0.055579	16.575973   
+lg22	13548097	G	T	0.367914	17.606975     
+lg02	11230464	T	G	0.270028	20.187461    
 
+Hey!! That's the same most associated SNP!!
+```{r}
+dff<-read_tsv(file="outputs/1300/assoc-70.lrt0.gz") %>%
+  mutate(log10p = -log10(dchisq(LRT, df = 1)))  %>% filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+dff %>% arrange(adjp, -log10p) %>% head()         
+```
+
+```{r}
+sub<-dff %>% filter(Chromosome %in% c("lg01","lg02","lg03","lg04","lg21","lg22","lg23"))
+ggplot(sub) +
+  geom_point(aes(x=Position, y=log10p, fill=log10p), alpha=0.5) +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~Chromosome, ncol=10, scales="free_x") +
+  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+```
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/newgenome-all-70.bamlist \
+-yBin $HOME/ds-lh/phenos/newgenome-all-70.phenos -minMapQ 20 -minQ 20 -minInd 192 -doAsso 2 -doPost 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1300/assoc-70-2 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1300/assoc70-2.out 2> outputs/1300/assoc70-2.err &
+```
+
+```{r}
+d2<-read_tsv(file="outputs/1300/assoc-70-2.lrt0.gz") %>%
+  mutate(log10p = -log10(dchisq(LRT, df = 1)))  %>% filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+d2 %>% arrange(adjp, -log10p) %>% select(-N, Frequency) %>% head()         
+```

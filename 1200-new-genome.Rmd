@@ -418,3 +418,53 @@ lg01	12323378	C	G	0.207421	67	13.199519	28/24/0
 lg04	9935218	T	G	0.159981	67	15.746009	36/16/0    
 lg02	11230311	A	C	0.314986	67	19.320573	35/20/11    
 lg02	11230464	T	G	0.320277	67	19.766663	35/21/11     
+
+
+### Changing model
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012-newgenome05.bamlist \
+-yBin $HOME/ds-lh/phenos/2012-newgenome05.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 1 -model 2 -GL 1 \
+-out $HOME/ds-lh/outputs/1200/assoc05-dominant -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1200/assoc05-dom.out 2> outputs/1200/assoc05-dom.err &
+```
+maccamp@farm:~/ds-lh$ gunzip -c outputs/1200/assoc05-dominant.lrt0.gz | sort -k 6 -n | tail     
+lg01	2467271	G	A	0.077797	13.031384    
+lg23	5832618	A	T	0.113305	13.124640    
+lg09	7338206	C	T	0.149206	13.275099     
+lg11	11148662	G	A	0.074642	13.720920     
+scaffold_314	6295	C	A	0.074632	13.721667    
+lg21	47867	C	T	0.279261	13.899696    
+scaffold_314	6080	A	T	0.076713	14.010966     
+lg10	13089180	A	C	0.078174	14.150752    
+lg02	11230311	A	C	0.293849	21.220818     
+lg02	11230464	T	G	0.317309	26.532230      
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012-newgenome05.bamlist \
+-yBin $HOME/ds-lh/phenos/2012-newgenome05.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 1 -model 3 -GL 1 \
+-out $HOME/ds-lh/outputs/1200/assoc05-recessive -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1200/assoc05-rec.out 2> outputs/1200/assoc05-rec.err &
+```
+maccamp@farm:~/ds-lh$ gunzip -c outputs/1200/assoc05-recessive.lrt0.gz| sort -k 6 -n | tail   
+lg01	2467271	G	A	0.077797	13.031384   
+lg23	5832618	A	T	0.113305	13.124640   
+lg09	7338206	C	T	0.149206	13.275099   
+lg11	11148662	G	A	0.074642	13.720920    
+scaffold_314	6295	C	A	0.074632	13.721667    
+lg21	47867	C	T	0.279261	13.899696    
+scaffold_314	6080	A	T	0.076713	14.010966    
+lg10	13089180	A	C	0.078174	14.150752    
+lg02	11230311	A	C	0.293849	21.220818    
+lg02	11230464	T	G	0.317309	26.532230     
+
+### lg02 in previous genome???
+
+lg02:11230011-11231011	54	99.700	1001	3	0	1	1001	557825	556825	0.0	1832     
+
+Previously::   
+Chromosome Position Major Minor Frequency     N   LRT `high_WT/HE/HO`    
+         <dbl>    <dbl> <chr> <chr>     <dbl> <dbl> <dbl> <chr>             
+1         54   557372 A     C        0.275    367  15.9 165/119/22        
+
+Seems so...  But we didn't have "significance" and it wasn't featured in just the 2012 analysis.
+
