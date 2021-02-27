@@ -271,6 +271,18 @@ ggplot(df2) +
 #  scale_color_gradient(low="darkgrey", high="cyan") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
 
+ggplot(df2 %>% filter(Chromosome=="lg02")) +
+  geom_point(aes(x=Position, y=log10p), alpha=0.5, fill="darkgrey") +
+  geom_point(data=highest %>% filter(Chromosome=="lg02"), aes(x=Position,y=log10p), pch=21, fill="cyan") +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+#  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+  xlab("LG02") +
+  ylab("-log10p")
+
+ggsave("outputs/1200/lg02.jpeg", width=1.5, height=3)
+
 ```
 
 What about significance thresholds?

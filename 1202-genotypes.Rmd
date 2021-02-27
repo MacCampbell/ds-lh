@@ -23,6 +23,7 @@ df<-read_tsv(file="outputs/1200/assoc05.lrt0.gz") %>% mutate(log10p = -log10(dch
 arrange(df, -log10p) %>% top_n(20)
 df2 <- filter(df, grepl("lg",Chromosome))
 highest<-df2 %>% top_frac(.001,log10p) %>% mutate(Location=paste0(Chromosome,"_",Position))
+write_csv(highest, "outputs/1202/highest.csv")
 ```
 ```{r}
 load("outputs/1201/snps.rda")
@@ -99,11 +100,12 @@ phenotypes<-read_tsv("phenos/2012-newgenome05.phenos", col_names="Pheno") %>%
 ```
 ```{r}
 pdf("outputs/1202/heatmap-reordered-sites.pdf", width=11, height=14)
-heatmap.2(as.matrix(gensites), labCol=atable$Position, labRow=phenotypes$Phenotype, cexRow = 0.6,
-          colRow = phenotypes$Color,
+heatmap.2(as.matrix(gensites), labCol=atable$Position, labRow="", cexRow = 0.6,
+          colRow = phenotypes$Color, RowSideColors = phenotypes$Color,
           trace="none",
           key=FALSE, dendrogram=c("row"), srtCol=45, margins = c(10,5), na.color=viridis(1),
-          col=viridis)
+          col=viridis,
+          hclustfun = function(x) hclust(x,method = 'ward.D'))
 dev.off()
 
 pdf("outputs/1202/heatmap.pdf", width=11, height=14)
@@ -111,6 +113,8 @@ heatmap.2(as.matrix(gensites), labCol=atable$Position, labRow=phenotypes$Phenoty
           colRow = phenotypes$Color,
           trace="none",
           key=FALSE, dendrogram=c("row"), srtCol=45, margins = c(10,5), na.color=viridis(1),
-          Colv = FALSE, col=viridis)
+          Colv = FALSE, col=viridis,
+                    hclustfun = function(x) hclust(x,method = 'ward.D'))
+
 dev.off()
 ```

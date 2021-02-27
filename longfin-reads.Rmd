@@ -1,0 +1,64 @@
+---
+title: "longfin-reads"
+author: "Mac Campbell"
+date: "February 25, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## Compare Counts
+
+```{r}
+old<-read_tsv("outputs/longfin/old-counts-files.txt", col_names=c("File"))
+old$Sample<-gsub("_sorted_flt.bam","",old$File)
+oldreads<-read_tsv("outputs/longfin/old-counts.txt", col_names=c("Out"))
+oldreads$Reads<-gsub(" + 0 mapped (100.00% : N/A)", "",oldreads$Out, fixed = TRUE)
+
+oldtot<-bind_cols(old,oldreads) %>% select(-Out) %>% select(Sample, File, Reads) %>% mutate(Alignment="Original")
+nrow(oldtot)
+```
+
+```{r}
+new<-read_tsv("outputs/longfin/new-counts-files.txt", col_names=c("File"))
+new$Sample<-gsub("_R1.sort.flt.bam","",new$File)
+newreads<-read_tsv("outputs/longfin/new-counts.txt", col_names=c("Out"))
+newreads$Reads<-gsub(" + 0 mapped (100.00% : N/A)", "",newreads$Out, fixed = TRUE)
+
+newtot<-bind_cols(new,newreads) %>% select(-Out) %>% select(Sample, File, Reads) %>% mutate(Alignment="New Genome")
+nrow(newtot)
+```
+
+```{r}
+comb<-bind_rows(oldtot,newtot)
+comb$Reads<-as.numeric(comb$Reads)
+
+mean(as.numeric(oldtot$Reads))
+mean(as.numeric(newtot$Reads))
+```
+Hmmm... Basic idea
+
+```{r}
+(578798.6-444797.9)/444797.9 * 100
+```
+30% more?
+
+```{r}
+comb$Alignment<-factor(comb$Alignment, levels = c("Original","New Genome"))
+ggplot(comb) +
+  geom_histogram(aes(Reads, fill=Alignment), color="black", alpha=0.75, bins = 30) +
+  theme_bw() +
+  facet_wrap(.~Alignment) +
+  theme(axis.text.x=element_text(angle=45, vjust=0.5)) +
+  scale_fill_viridis_d(option="D", direction=-1) +
+  ylab("Count") +
+  xlab("\nAligned Reads")
+
+ggsave("outputs/longfin/histo.jpeg")
+```

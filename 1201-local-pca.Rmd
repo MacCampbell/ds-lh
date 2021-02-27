@@ -14,6 +14,7 @@ library(tidyverse)
 library(lostruct)
 library(RColorBrewer)
 library(vcfR)
+library(adegenet)
 ```
 
 ## Local PCA
@@ -294,10 +295,19 @@ plink --vcf lg12.vcf --r2 inter-chr --ld-window-r2 0.01 --out lg12.ldf --allow-e
 
 ```{r}
 ld09<-read.delim("outputs/1201/lg09.ldf.ld",sep="",stringsAsFactors=FALSE) %>% as_tibble() %>% arrange(R2)
+ld094<-ld09 %>% filter(R2 > 0.3)
 
-ggplot(ld09) +
+ggplot(ld094) +
   geom_point(aes(x=BP_A, y=BP_B, color=R2), alpha=0.5) +
   scale_color_gradient(low="khaki1", high="red")
+
+##12731603-15411529
+region<-ld094 %>% filter(BP_A >= 12000000, BP_A <= 17000000) %>% filter(BP_B >= 12000000, BP_B <= 17000000 )
+
+ggplot(region) +
+  geom_point(aes(x=BP_A, y=BP_B, color=R2), alpha=0.5) +
+  scale_color_gradient(low="khaki1", high="red")
+
 ```
 
 ```{r}
@@ -317,7 +327,7 @@ outliers2 %>% filter(chrom=="lg09")
 15411529 end of window 31
 17741719 end of window 34
 
-Macs-MBP-2:1201 mac$ bcftools view -r lg09:12731603-15411529 lg09.vcf.gz > lg09-sub.vcf
+Macs-MBP-2:1201 mac$ bcftools view -r lg09:13000000-16000000 lg09.vcf.gz > lg09-sub.vcf
 Macs-MBP-2:1201 mac$ bcftools annotate --set-id '%CHROM:%POS:' lg09-sub.vcf > lg09-sub-anno.vcf
 
 Plot PCA at this range.
@@ -338,7 +348,40 @@ ggplot(df, aes(x=Axis1, y=Axis2)) +
 ```
 
 ```{r}
+options<-as_tibble(colnames(snps)) %>% filter(value !="FID") %>%
+  separate(value, into=c("Chrom","Position","Base"), remove=FALSE) %>%
+  filter(Chrom=="lg09")
+options$Position <-as.numeric(options$Position)
+options<- options %>%
+  filter(Position > 12000000) %>%
+  filter(Position < 15000000)
+snpsites<-snps[colnames(snps) %in% c(options$value)]
+```
 
+
+```{r}
+popcols<-population %>% mutate(Color=ifelse(population=="Pop0","red","blue"))
+```
+
+```{r}
+library(gplots)
+library(viridis)
+heatmap.2(as.matrix(snpsites), labRow="", 
+          trace="none",
+          key=FALSE, dendrogram=c("row"), srtCol=45, margins = c(10,5), na.color=viridis(1),
+          col=viridis,  Colv = FALSE,
+          hclustfun = function(x) hclust(x,method = 'ward.D')
+          )
+
+pdf("outputs/1201/heatmap.pdf")
+heatmap.2(as.matrix(snpsites), 
+          trace="none",
+          key=FALSE, dendrogram=c("row"), srtCol=45, margins = c(10,5), na.color=viridis(1),
+          col=viridis,  Colv = FALSE, cexCol = 0.25, cexRow=0.25,
+          colRow = popcols$Color,
+          hclustfun = function(x) hclust(x,method = 'ward.D')
+          )
+dev.off()
 ```
 
 Compare to whole chrom:    
