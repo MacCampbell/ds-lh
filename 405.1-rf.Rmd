@@ -1,0 +1,247 @@
+---
+title: "405.1-rf"
+author: "Mac Campbell"
+date: "3/29/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+# Random Forest
+Originally from Cisel Kemahli Aytekin, PhD [mckemahli\@gmail.com].     
+
+## Set Up
+
+```{r}
+library(tidyverse)
+library(RRF)
+library(randomForest)
+library(ggplot2)
+library(ggthemes)
+#library(WGCNA)
+```
+
+
+```{r}
+# Read in data files. Geno file consists of the genotypes of each SNP. The data also includes trait of each indvidual that you want to identify for random forest. 
+# You can mangae your data based on your geno file.
+
+#Mac is doubling the on comment original lines
+
+##data_btr <- read.table("btr_rf.geno", header=T)
+
+#Reading in 2012 samples aligned to the new genome
+#For testing, reducing the number of SNPS by selecting a useful set of chroms, 
+
+data_btr <- read.table("outputs/1201/localpca.geno") %>% filter(V1 %in% c("lg02","lg10"))
+  
+
+##rownames(data_btr)=data_btr[,1]
+
+##data_btr$Site <- NULL
+##data_btr$Major <- NULL
+##data_btr$Minor <- NULL
+
+#From Angsd so I don't have those details and I coded as numeric.
+##data_btr2=transposeBigData(data_btr)
+data_btr2<-t(data_btr[3:ncol(data_btr)]) %>% as_tibble()
+
+#Adding colnames, that is chrom-position
+colnames(data_btr2)=paste0(data_btr$V1,"-",data_btr$V2)
+
+#Missing data is coded as -1, I'll replace with the most common value like so:
+data_btr2 <- as.data.frame(lapply(data_btr2, function(x){replace(x, x < 0, round(mean(x),0))})) %>% as_tibble()
+
+
+```
+
+Need some phenotype data, calling "Behavior to be consistent with script"
+```{r}
+meta<-read_csv("phenos/2012-newgenome05.phenos", col_name="Numeric") %>%
+  mutate(Phenotype=ifelse(Numeric==0, "FWR", "MIG"))
+
+#Response factor should be a factor
+data_btr2$Behavior<-as.factor(meta$Phenotype)
+data_btr2<-data_btr2 %>% relocate(Behavior)
+
+data_btr2 %>% group_by(Behavior) %>% summarize(Count=n())
+
+```
+
+```{r}
+
+#--------Testing/training sets. Randomly select 2/3 of samples for the training set, and put the remaining in the test set
+##Mac notes that it would be nice to have a 50/50 split between types
+
+samp <- sample(nrow(data_btr2), 0.66 * nrow(data_btr2))
+train <- data_btr2[samp, ]
+test <- data_btr2[-samp, ]
+
+train %>% group_by(Behavior) %>% summarize(Count=n())
+test %>% group_by(Behavior) %>% summarize(Count=n())
+```
+
+## Running Trees
+
+```{r, eval=FALSE}
+#--------------------
+
+# ran RF using 250, 500, 1,000, 2,000, 4,000, 8,000 and 10,000 trees, 10 times each
+# minimum node size of 5. Other parameters default
+
+# ntree = number of trees
+# mtry - Note that the default values are different for classification (sqrt(p) where p is number of variables in x) and regression (p/3)
+# nodesize = Minimum size of terminal nodes. 
+
+n_btr=ncol(train)-1
+ntrees <- rep(c(250,500,1000,2000,4000,8000,10000),each=10)
+oob <- rep(0,times=70)
+ntree_oob <- data.frame(ntrees,oob)
+
+# Run 7 different tree numbers 10 times each, and record OOB error for each run
+for (i in 1:10) {
+  print(paste0("ntree = ", ntree_oob$ntrees[i], ", replicate ", i))
+  rf_125tree=randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=10000, nodesize=5, importance=TRUE)
+  ntree_oob$oob[i] = as.numeric(rf_125tree$err.rate[125,1])
+  
+  print(paste0("ntree = ", ntree_oob$ntrees[10+i], ", replicate ", i))
+  rf_250tree=randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=250, nodesize=5, importance=TRUE)
+  ntree_oob$oob[10+i] = as.numeric(rf_250tree$err.rate[250,1])
+  
+  print(paste0("ntree = ", ntree_oob$ntrees[20+i], ", replicate ", i))
+  rf_500tree=randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=500, nodesize=5, importance=TRUE)
+  ntree_oob$oob[20+i] = as.numeric(rf_500tree$err.rate[500,1])
+  
+  print(paste0("ntree = ", ntree_oob$ntrees[30+i], ", replicate ", i))
+  rf_1000tree=randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=1000, nodesize=5, importance=TRUE)
+  ntree_oob$oob[30+i] = as.numeric(rf_1000tree$err.rate[1000,1])
+  
+  print(paste0("ntree = ", ntree_oob$ntrees[40+i], ", replicate ", i))
+  rf_2000tree=randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=2000, nodesize=5, importance=TRUE)
+  ntree_oob$oob[40+i] = as.numeric(rf_2000tree$err.rate[2000,1])
+  
+  print(paste0("ntree = ", ntree_oob$ntrees[50+i], ", replicate ", i))
+  rf_4000tree=randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=4000, nodesize=5, importance=TRUE)
+  ntree_oob$oob[50+i] = as.numeric(rf_4000tree$err.rate[4000,1])
+  
+  print(paste0("ntree = ", ntree_oob$ntrees[60+i], ", replicate ", i))
+  rf_8000tree=randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=8000, nodesize=5, importance=TRUE)
+  ntree_oob$oob[60+i] = as.numeric(rf_8000tree$err.rate[8000,1])
+  
+}
+
+```
+
+Saving for later:
+```{r, eval=FALSE}
+save(rf_125tree, file = "outputs/405/rf_125tree.rda")
+save(rf_250tree, file = "outputs/405/rf_250tree.rda")
+save(rf_500tree, file = "outputs/405/rf_500tree.rda")
+save(rf_1000tree, file = "outputs/405/rf_1000tree.rda")
+save(rf_2000tree, file = "outputs/405/rf_2000tree.rda")
+save(rf_4000tree, file = "outputs/405/rf_4000tree.rda")
+save(rf_8000tree, file = "outputs/405/rf_8000tree.rda")
+save(ntree_oob, file = "outputs/405/ntree_oob.rda")
+```
+
+## Finding T
+go with number of trees with stabilized out of bag error
+
+```{r}
+#load("outputs/405/ntree_oob.rda")
+##plot OOB error over all runs
+ggplot(ntree_oob,aes(group=ntrees, x=as.factor(ntrees), y=oob)) +
+  geom_boxplot() + 
+  theme_few()
+
+ggsave("outputs/405/oob.pdf")
+```
+
+
+## Chosen T
+
+```{r, eval=FALSE}
+#Choose number of trees to proceed with
+chosenNTree <- 2000
+
+# mtry tested at default, half default, twice default. go with lowest error. Try mtry starting from 2.
+# Note that the default values are different for classification (sqrt(p) where p is number of variables in x) and regression (p/3)
+
+mtry <- rep(c(2,4,8,16),each=10)
+oob <- rep(0,times=40)
+mtry_oob <- data.frame(mtry,oob)
+
+
+for (i in 1:10) {
+  print(paste0("mry = ", mtry_oob$mtry[i], ", replicate ", i))
+  rf_2mtry=randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=chosenNTree, nodesize=5, importance=TRUE, mtry=2)
+  mtry_oob$oob[i] = as.numeric(rf_2mtry$err.rate[chosenNTree,1])
+  
+  print(paste0("mry = ", mtry_oob$mtry[10+i], ", replicate ", i))
+  rf_4mtry=randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=chosenNTree, nodesize=5, importance=TRUE, mtry=4)
+  mtry_oob$oob[10+i] = as.numeric(rf_4mtry$err.rate[chosenNTree,1])
+  
+  print(paste0("mry = ", mtry_oob$mtry[20+i], ", replicate ", i))
+  rf_8mtry=randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=chosenNTree, nodesize=5, importance=TRUE, mtry=8)
+  mtry_oob$oob[20+i] = as.numeric(rf_8mtry$err.rate[chosenNTree,1])
+  
+  print(paste0("mry = ", mtry_oob$mtry[30+i], ", replicate ", i))
+  rf_16mtry=randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=chosenNTree, nodesize=5, importance=TRUE, mtry=16)
+  mtry_oob$oob[30+i] = as.numeric(rf_16mtry$err.rate[chosenNTree,1])
+  
+}
+```
+
+```{r}
+#plot OOB error over all runs
+ggplot(mtry_oob,aes(group=mtry, x=as.factor(mtry), y=oob)) + geom_boxplot() + theme_few() 
+
+ggsave("outputs/405/oob-model.pdf")
+```
+
+
+## Running the Model
+```{r}
+#run the constructed model on the testing set to classify individuals
+chosenmtry<-16
+pred <- predict(rf_16mtry, newdata = test)
+table(pred, test$Behavior)
+
+# 5 separate runs to make 5 lists, ranked by MDA. Panels created from lists by choosing 10 different MDA thresholds (all positive), to make 40-700 loci/panel
+# For example, SNPs consistently ranked within the top 800 loci in all five lists were aggregated to form a consensus panel of 67 SNPs
+
+rf_mtry_r1 <- randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=chosenNTree, nodesize=5, importance=TRUE, mtry=chosenmtry)
+rf_mtry_r2 <- randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=chosenNTree, nodesize=5, importance=TRUE, mtry=chosenmtry)
+rf_mtry_r3 <- randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=chosenNTree, nodesize=5, importance=TRUE, mtry=chosenmtry)
+rf_mtry_r4 <- randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=chosenNTree, nodesize=5, importance=TRUE, mtry=chosenmtry)
+rf_mtry_r5 <- randomForest(train[,1:n_btr], train$Behavior, data=train, proximity=TRUE, ntree=chosenNTree, nodesize=5, importance=TRUE, mtry=chosenmtry)
+
+print(rf_mtry_r1)
+print(rf_mtry_r2)
+print(rf_mtry_r3)
+print(rf_mtry_r4)
+print(rf_mtry_r5)
+```
+
+## Save
+```{r}
+
+#After determining best ntree and mtry values for the dataset, run 5 separate randomForest. After this, based on the OOB error rates, the SNPs that have all 0>= values were eliminated. 
+#Until oob error rate is stabilized and minimized for all runs, this step can be repeated. At the end, the best SNPs that identifes the searched pattern will be obtained. 
+
+##par(mfcol=c(3,2))
+importance(rf_mtry_r1, type=1)
+importance(rf_mtry_r2, type=1)
+importance(rf_mtry_r3, type=1)
+importance(rf_mtry_r4, type=1)
+importance(rf_mtry_r5, type=1)
+
+write.csv(importance(rf_mtry_r1, type=1), "outputs/405/BTR_rf1_1.csv")
+write.csv(importance(rf_mtry_r2, type=1), "outputs/405/BTR_rf1_2.csv")
+write.csv(importance(rf_mtry_r3, type=1), "outputs/405/BTR_rf1_3.csv")
+write.csv(importance(rf_mtry_r4, type=1), "outputs/405/BTR_rf1_4.csv")
+write.csv(importance(rf_mtry_r5, type=1), "outputs/405/BTR_rf1_5.csv")
+
+```

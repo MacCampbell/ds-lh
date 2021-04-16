@@ -452,7 +452,7 @@ lg02	11230311	A	C	0.293849	21.220818
 lg02	11230464	T	G	0.317309	26.532230      
 
 ```{sh, eval=FALSE}
-srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012-newgenome05.bamlist \
+nsrun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/2012-newgenome05.bamlist \
 -yBin $HOME/ds-lh/phenos/2012-newgenome05.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 1 -model 3 -GL 1 \
 -out $HOME/ds-lh/outputs/1200/assoc05-recessive -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1200/assoc05-rec.out 2> outputs/1200/assoc05-rec.err &

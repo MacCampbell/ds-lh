@@ -62,3 +62,50 @@ ggplot(comb) +
 
 ggsave("outputs/longfin/histo.jpeg")
 ```
+
+##Including the Eulachon assembly
+In ~/data/longfin-eulachon-align      
+```{sh, eval=FALSE}
+ls | grep sort.flt.bam | grep -v bai | while read line; do samtools flagstat $line | grep mapped | head -n 1 >> thal-counts.txt; done
+
+ ls | grep sort.flt.bam | grep -v bai >> thal-counts-files.txt
+```
+
+Moving locally... 
+
+```{r}
+thal<-read_tsv("outputs/longfin/thal-counts-files.txt", col_names=c("File"))
+thal$Sample<-gsub("_R1.sort.flt.bam","",new$File)
+thalreads<-read_tsv("outputs/longfin/thal-counts.txt", col_names=c("Out"))
+thalreads$Reads<-gsub(" + 0 mapped (100.00% : N/A)", "",thalreads$Out, fixed = TRUE)
+
+thaltot<-bind_cols(thal,thalreads) %>% select(-Out) %>% select(Sample, File, Reads) %>% mutate(Alignment="Thaleichthys")
+nrow(thaltot)
+```
+
+```{r}
+comb2<-bind_rows(oldtot,newtot,thaltot)
+comb2$Reads<-as.numeric(comb2$Reads)
+
+mean(as.numeric(oldtot$Reads))
+mean(as.numeric(newtot$Reads))
+mean(as.numeric(thaltot$Reads))
+```
+
+```{r}
+comb2$Alignment<-factor(comb2$Alignment, levels = c("Original","New Genome", "Thaleichthys"))
+ggplot(comb2) +
+  geom_histogram(aes(log(Reads), fill=Alignment), color="black", alpha=0.75, bins = 30) +
+  theme_bw() +
+  facet_wrap(.~Alignment, ncol=1) +
+  theme(axis.text.x=element_text(angle=45, vjust=0.5)) +
+  scale_fill_viridis_d(option="D", direction=-1) +
+  ylab("Count") +
+  xlab("\nlog(Aligned Reads)") +
+  theme(panel.grid=element_blank()) +
+  geom_vline(xintercept=log(mean(as.numeric(oldtot$Reads))), color="yellow") +
+  geom_vline(xintercept=log(mean(as.numeric(newtot$Reads))), color="green") +
+  geom_vline(xintercept=log(mean(as.numeric(thaltot$Reads))), color="purple")
+
+ggsave("outputs/longfin/histo.jpeg", width=6, height = 10)
+```

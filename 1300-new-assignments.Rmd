@@ -1,0 +1,101 @@
+---
+title: "1300-new-assignments"
+author: "Mac Campbell"
+date: "3/29/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## New Assignments
+Courtesy of Levi et al. Let's check them out.
+```{r}
+newmeta<-read_csv("metadata/new_assignments.csv")
+```
+
+At a glance, I'd like to consider FWR1 vs FWM1. FWR2 seems a lot like FWM1. BWR1 is a distinctive phenotype too. Maybe I should check variation for BWR1 when I have some key loci identified.
+
+What do our old/new ids look like?
+
+```{r}
+newmeta %>% select(new_id, old_id) %>% head()
+newmeta<-newmeta %>% separate(new_id, into=c("Year","Survey","Number"), remove=FALSE)
+newmeta$Number<-as.numeric(newmeta$Number)
+newmeta %>% select(new_id, old_id, Number) %>% filter(new_id != old_id)
+```
+
+Hmm... Ok then.
+
+## Find overlap with sequenced fish
+
+Some numbers have leading zeros, some don't.
+Also, we need to drop the Wakasagis.
+
+
+```{r}
+#Drop the two bad samples I know about
+#Ht20-30_2012_F04
+#Ht20-77_2012_E10
+#These two are also "funny"
+# Ht19-21_2012_E03 &  2013-SKT-6396 PC-02
+
+seqs<-read_csv("metadata/Field Ids.csv") %>% rename(Sample_ID=`Field ID`) %>%
+   filter(!`Sequence File Name` %in% c("Ht20-30_2012_F04","Ht20-77_2012_E10",
+                                                      "Ht19-21_2012_E03", "Ht19-20_2012_D03")) %>%
+  separate(Sample_ID, into=c("Year","Survey","Number"), remove=FALSE)
+
+seqs$Number<-as.numeric(seqs$Number)
+seqs$Sample_ID<-gsub("-","_",seqs$Sample_ID)
+
+#Joins by Year, Survey, Number
+metanew<-left_join(seqs, newmeta)
+```
+
+```{r}
+hits<-metanew %>% select(`Sequence File Name`, Sample_ID, old_id, change, new_classes, Number) %>% filter(new_classes != "NA")
+nrow(hits)
+
+metanew %>% filter(new_classes != "NA") %>% group_by(Year, aggregated_new_classes) %>% summarize(Count=n())
+```
+
+We have the same number of fish (287) as I did originally, 283 due to Wakasagis or whatevers.
+
+```{r}
+metanew %>% filter(new_classes != "NA") %>% filter(Year==2013) %>%
+  group_by(Year, new_classes, aggregated_new_classes) %>% summarize(Count=n())
+
+```
+
+Let's analyze FWM1 and FWR1.
+"New" genome bamlist is of the form: bams/Ht19-70_2012_F09_R1.sort.flt.bam
+
+```{r}
+strict2013<-metanew %>% select(`Sequence File Name`, new_classes, Year) %>% filter(Year==2013) %>% 
+  filter(new_classes %in% c("FWR1", "FWM1")) %>%
+  mutate(File=paste0(`Sequence File Name`, "_R1.sort.flt.bam")) %>%
+  mutate(Path=paste0("bams/",File))
+
+# include coverage
+files<-read_tsv("outputs/1200/counts.files.txt", col_names="File")
+counts<-read_tsv("outputs/1200/counts.txt", col_names="Counts")
+counts$Counts<-gsub(" + 0 mapped (100.00% : N/A)", "", counts$Counts, fixed = TRUE)
+comb<-bind_cols(files, counts)
+comb$Counts<-as.numeric(comb$Counts)
+```
+
+The below merge is incomplete.
+We have 30 missing samples.
+
+```{r}
+meta2013<-left_join(strict2013, comb) 
+
+meta2013 %>% filter(is.na(Counts))
+
+```
+
