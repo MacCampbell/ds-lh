@@ -37,6 +37,11 @@ Hmm... Ok then.
 Some numbers have leading zeros, some don't.
 Also, we need to drop the Wakasagis.
 
+05/05 - replacing leading zeros.
+Maybe this is enough of a string to work with:Ht16-1_20
+```{sh, eval=FALSE}
+cat Field\ Ids.csv |  perl -pe 's/Ht(\d\d)-(\d)_20/Ht$1-0$2_20/g' > corrected-field-ids.csv
+```
 
 ```{r}
 #Drop the two bad samples I know about
@@ -45,7 +50,8 @@ Also, we need to drop the Wakasagis.
 #These two are also "funny"
 # Ht19-21_2012_E03 &  2013-SKT-6396 PC-02
 
-seqs<-read_csv("metadata/Field Ids.csv") %>% rename(Sample_ID=`Field ID`) %>%
+#seqs<-read_csv("metadata/Field Ids.csv") %>% rename(Sample_ID=`Field ID`) %>% ## Edited 05/05
+seqs<-read_csv("metadata/corrected-field-ids.csv") %>% rename(Sample_ID=`Field ID`) %>%
    filter(!`Sequence File Name` %in% c("Ht20-30_2012_F04","Ht20-77_2012_E10",
                                                       "Ht19-21_2012_E03", "Ht19-20_2012_D03")) %>%
   separate(Sample_ID, into=c("Year","Survey","Number"), remove=FALSE)
@@ -80,22 +86,88 @@ strict2013<-metanew %>% select(`Sequence File Name`, new_classes, Year) %>% filt
   filter(new_classes %in% c("FWR1", "FWM1")) %>%
   mutate(File=paste0(`Sequence File Name`, "_R1.sort.flt.bam")) %>%
   mutate(Path=paste0("bams/",File))
+```
 
+Recalculating coverage on 05/05.     
+
+`ls | grep sort.flt.bam | grep -v bai | while read line; do samtools flagstat $line | grep mapped | head -n 1 >> counts.txt; done;`
+`ls | grep sort.flt.bam | grep -v bai >> counts.files.txt`
+
+
+```{r}
 # include coverage
-files<-read_tsv("outputs/1200/counts.files.txt", col_names="File")
-counts<-read_tsv("outputs/1200/counts.txt", col_names="Counts")
+files<-read_tsv("outputs/1300/counts.files.txt", col_names="File")
+counts<-read_tsv("outputs/1300/counts.txt", col_names="Counts")
 counts$Counts<-gsub(" + 0 mapped (100.00% : N/A)", "", counts$Counts, fixed = TRUE)
 comb<-bind_cols(files, counts)
 comb$Counts<-as.numeric(comb$Counts)
 ```
 
-The below merge is incomplete.
-We have 30 missing samples.
+The below merge is incomplete when originally done, there were 30 missing samples.     
+
+Sometime later, 05/05/2021, I figure the difference may come Sequences with 1-9 vs 01-09.   
+Turns out sequences of the form Ht27-01_2014_A01_R1.fastq weren't mapped.      
+Then our meta expects Ht27-1_2014_A01     
 
 ```{r}
 meta2013<-left_join(strict2013, comb) 
 
-meta2013 %>% filter(is.na(Counts))
+dat<-meta2013 %>% filter(is.na(Counts)) 
+write_tsv(dat, "outputs/1300/dat.tsv")
 
+dat
+```
+Fixed my problem!!!!    
+
+Samtools says that some of these should be have reads:    
+samtools flagstat Ht20-14_2012_F02_R1.sort.flt.bam     
+169243 + 0 in total (QC-passed reads + QC-failed reads)    
+
+making a file for mapping
+```{sh, eval=FALSE}
+cut -f 4 dat.tsv | perl -pe s'/\.sort\.flt\.bam//g' > r1missing.txt
+cut -f 4 dat.tsv | perl -pe s'/\.sort\.flt\.bam//g' | perl -pe s'/R1/R2/g' > r2missing.txt
+paste r1missing.txt r2missing.txt > 2013-missing.txt
+cat 2013-missing.txt | perl -pe 's/-(\d)_/-0$1_/g' > 2013-missing-leading0s.txt
+scp -P 2022 2013-missing-leading0s.txt farm:~/ds-lh/data/
+```
+`(base) maccamp@farm:~/ds-lh/data$ ./doAlign.sh 2013-missing-leading0s.txt ~/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa`      
+
+Now to fix the 0s in the meta and redo.
+
+
+## Now to filter on coverage.
+```{r}
+ggplot(meta2013) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~new_classes)
+```
+```{r}
+top2013<-meta2013 %>% top_frac(.5, Counts)
+top2013 %>% group_by(new_classes) %>% summarize(Count=n())
+ggplot(top2013) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~new_classes) +
+  xlim(0, max(top2013$Counts))
+```
+
+Let's crunch the top2013 with a GWAS.   
+
+Create new bamlist and pheno list.
+```{r}
+new<-top2013 %>% select(Path)
+write_tsv(new, "bamlists/top2013.bamlist", col_names = FALSE)
+
+newpheno<-top2013 %>% select(new_classes) %>% mutate(Pheno=ifelse(new_classes=="FWR1",0,1)) %>%
+  select(Pheno)
+write_tsv(newpheno, "phenos/top2013.phenos", col_names = FALSE)
+```
+
+Association testing, 77 individuals 75% thresh, 57.75:
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/top2013.bamlist \
+-yBin $HOME/ds-lh/phenos/top2013.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1300/top -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1300/top.out 2> outputs/1300/top.err &
 ```
 
