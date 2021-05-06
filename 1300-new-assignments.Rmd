@@ -150,6 +150,14 @@ ggplot(top2013) +
   facet_wrap(.~new_classes) +
   xlim(0, max(top2013$Counts))
 ```
+```{r}
+top90<-meta2013 %>% top_frac(.9, Counts)
+top90 %>% group_by(new_classes) %>% summarize(Count=n())
+ggplot(top90) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~new_classes) +
+  xlim(0, max(top90$Counts))
+```
 
 Let's crunch the top2013 with a GWAS.   
 
@@ -171,3 +179,118 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1300/top.out 2> outputs/1300/top.err &
 ```
 
+82307 sites.     
+```{r}
+df<-read_tsv(file="outputs/1300/top.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(df, -log10p) %>% top_n(20)
+df2 <- filter(df, grepl("lg",Chromosome))
+highest<-df2 %>% top_frac(.001,log10p) 
+
+```
+
+```{r}
+ggplot(df2) +
+  geom_point(aes(x=Position, y=log10p), alpha=0.5, fill="darkgrey") +
+  geom_point(data=highest, aes(x=Position,y=log10p), pch=21, fill="cyan") +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~Chromosome, ncol=10, scales="free_x") +
+#  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+ggplot(df2 %>% filter(Chromosome=="lg02")) +
+  geom_point(aes(x=Position, y=log10p), alpha=0.5, fill="darkgrey") +
+  geom_point(data=highest %>% filter(Chromosome=="lg02"), aes(x=Position,y=log10p), pch=21, fill="cyan") +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+#  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) +
+  xlab("LG02") +
+  ylab("-log10p")
+
+ggsave("outputs/1300/lg02.jpeg", width=1.5, height=3)
+
+```
+
+Trying the alternate model.
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/top2013.bamlist \
+-yBin $HOME/ds-lh/phenos/top2013.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 2 -doPost 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1300/top2 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1300/top2.out 2> outputs/1300/top2.err &
+```
+
+82307 sites. 
+```{r}
+ddf<-read_tsv(file="outputs/1300/top2.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(ddf, -log10p) %>% head()
+
+```
+
+Chaning minInd to 90% threshold.     
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/top2013.bamlist \
+-yBin $HOME/ds-lh/phenos/top2013.phenos -minMapQ 20 -minQ 20 -minInd 68 -doAsso 2 -doPost 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1300/top2-90 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1300/top290.out 2> outputs/1300/top290.err &
+```
+
+73093 sites.
+
+```{r}
+ddf<-read_tsv(file="outputs/1300/top2-90.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(ddf, -log10p) %>% head()
+```
+
+At 95%    
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/top2013.bamlist \
+-yBin $HOME/ds-lh/phenos/top2013.phenos -minMapQ 20 -minQ 20 -minInd 73 -doAsso 2 -doPost 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1300/top2-95 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1300/top295.out 2> outputs/1300/top295.err &
+```
+66938 sites.   
+
+```{r}
+dddf<-read_tsv(file="outputs/1300/top2-95.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(dddf, -log10p) %>% head()
+```
+
+Maybe I can use lgs, reduce low-coverage inds some more and/or call variants with bcftools and use plink??
+
+Using top90
+
+```{r}
+new90<-top90 %>% select(Path)
+write_tsv(new90, "bamlists/top902013.bamlist", col_names = FALSE)
+
+newpheno90<-top90 %>% select(new_classes) %>% mutate(Pheno=ifelse(new_classes=="FWR1",0,1)) %>%
+  select(Pheno)
+write_tsv(newpheno90, "phenos/top902013.phenos", col_names = FALSE)
+```
+
+139 inds (*.75) 104.25    
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/top902013.bamlist \
+-yBin $HOME/ds-lh/phenos/top902013.phenos -minMapQ 20 -minQ 20 -minInd 105 -doAsso 2 -doPost 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1300/top2902013 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1300/top2902013.out 2> outputs/1300/top2902013.err &
+````
+
+```
