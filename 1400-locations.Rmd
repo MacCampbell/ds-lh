@@ -69,10 +69,12 @@ toplot2<-coords2 %>% group_by(new_classes, lon, lat) %>% summarize(Count=n()) %>
 base +
   geom_point(data=toplot2, aes(x=lon, y=lat, fill=new_classes, size=Count), alpha=0.75, pch=21) +
  # geom_label_repel(data=toplot, aes(x=lon, y=lat, label=paste0(new_classes, "-", Count))) +
-  facet_wrap(.~new_classes, ncol=2) +
-  xlab("Longitude") +
-  ylab("Latitude") +
-  theme(axis.text.x = element_text(angle=45, vjust=0.5)) +
+  facet_wrap(.~new_classes, ncol=3) +
+  xlab("") +
+  ylab("") +
+  theme(axis.text = element_blank()) +
+  theme(axis.ticks = element_blank()) +
+  #theme(axis.text.x = element_text(angle=45, vjust=0.5)) +
   scale_fill_manual(values=c("orange","yellow","blue","lightblue","red"))
 
 
@@ -137,12 +139,64 @@ bams$`Sequence File Name`<-gsub("bams/|_R1.sort.flt.bam","",bams$Path)
 
 lengths<-left_join(bams, coords2)
 write_tsv(select(lengths, `Fork Length`), "phenos/top2013.fl.phenos", col_names = FALSE)
+
+lengths %>% group_by(new_classes) %>% mutate(Count=n()) %>% mutate(MeanFL=mean(`Fork Length`)) %>% select(new_classes, Count, MeanFL) %>% unique()
+
+fwm12013<-lengths %>% filter(new_classes=="FWM1")
+fwr12013<-lengths %>% filter(new_classes=="FWR1")
+
+sd(fwm12013$`Fork Length`)
+sd(fwr12013$`Fork Length`)
+
+test2013<-z.test(fwm12013$`Fork Length`, fwr12013$`Fork Length`, sigma.x=4, sigma.y=4)
+test2013
 ```
 
-Basic association test:
+
+Basic association test, requires doAsso 2 for quantative traits which requires doPost 1
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/top2013.bamlist \
--yQuant $HOME/ds-lh/phenos/top2013.fl.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 1 -GL 1 \
+-yQuant $HOME/ds-lh/phenos/top2013.fl.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 2 -doPost 1 -GL 1 \
 -out $HOME/ds-lh/outputs/1400/top-fl -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
--ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1400/top-fl.out 2> outputs/1300/top-fl.err &
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt> outputs/1400/top-fl.out 2> outputs/1400/top-fl.err &
 ```
+
+```{r}
+ldf<-read_tsv(file="outputs/1400/top-fl.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(ldf, -log10p) %>% head()
+```
+
+Bump up sample sizes:
+```{r}
+
+
+bams<-read_tsv("bamlists/top902013.bamlist", col_names = c("Path"))
+bams$`Sequence File Name`<-gsub("bams/|_R1.sort.flt.bam","",bams$Path)
+
+lengths<-left_join(bams, coords2)
+write_tsv(select(lengths, `Fork Length`), "phenos/top902013.fl.phenos", col_names = FALSE)
+
+lengths %>% group_by(new_classes) %>% mutate(Count=n()) %>% mutate(MeanFL=mean(`Fork Length`)) %>% select(new_classes, Count, MeanFL) %>% unique()
+
+fwm12013<-lengths %>% filter(new_classes=="FWM1")
+fwr12013<-lengths %>% filter(new_classes=="FWR1")
+
+sd(fwm12013$`Fork Length`)
+sd(fwr12013$`Fork Length`)
+
+test2013<-z.test(fwm12013$`Fork Length`, fwr12013$`Fork Length`, sigma.x=4.5, sigma.y=4.1)
+test2013
+```
+
+139 inds (*.75) 104.25    
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/top902013.bamlist \
+-yQuant $HOME/ds-lh/phenos/top902013.fl.phenos -minMapQ 20 -minQ 20 -minInd 105 -doAsso 2 -doPost 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1400/top2902013.fl -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt > outputs/1400/top2902013.out 2> outputs/1400/top2902013.err &
+````
+
