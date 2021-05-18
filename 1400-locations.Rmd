@@ -1,0 +1,148 @@
+---
+title: "1400-locations"
+author: "Mac Campbell"
+date: "May 18, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(ggrepel)
+library(ggmap)
+```
+
+## Stations
+Jim Hobbs sent me coords appended to the intersect of 03/02/2020 on 03/03/2020. I'll see if there is anything missing.
+```{r}
+intersect<-read_csv("metadata/genetics-oto-intersect-03022020.csv") %>% select(Sample_ID, station, lat, lon)
+nrow(intersect)
+
+needcoords<-read_csv("metadata/needcoords-05182021.csv")
+needcoords$Sample_ID<-gsub(pattern = "_", replacement = "-", needcoords$Sample_ID)
+nrow(needcoords)
+```
+
+Merging together
+```{r}
+coords<-left_join(needcoords, intersect)
+write_csv(coords, "metadata/genetics-oto-intersect-05182021.csv")
+```
+
+
+```{r}
+hascoords <- coords %>% filter((str_detect(lat,"\\d+")))
+nrow(hascoords)
+nrow(coords)-nrow(hascoords)
+
+```
+
+## Plot
+```{r}
+mapbox <- c(-122.5, 37.75, -121.25, 38.5)
+sfe <- get_map(location = mapbox, source = "stamen", maptype = "terrain", zoom = 9)
+base<-ggmap(sfe)
+```
+
+```{r}
+toplot<-coords %>% group_by(new_classes, lon, lat) %>% summarize(Count=n()) %>% select(new_classes, lon, lat, Count) %>% unique()
+
+base +
+  geom_point(data=toplot, aes(x=lon, y=lat, fill=new_classes, size=Count), alpha=0.75, pch=21) +
+ # geom_label_repel(data=toplot, aes(x=lon, y=lat, label=paste0(new_classes, "-", Count))) +
+  facet_wrap(.~new_classes, ncol=2) +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  theme(axis.text.x = element_text(angle=45))
+
+```
+
+Jim provided missing data.
+
+```{r}
+coords2<-read_csv("metadata/genetics-oto-intersect-05182021_JH.csv")
+toplot2<-coords2 %>% group_by(new_classes, lon, lat) %>% summarize(Count=n()) %>% select(new_classes, lon, lat, Count) %>% unique()
+
+base +
+  geom_point(data=toplot2, aes(x=lon, y=lat, fill=new_classes, size=Count), alpha=0.75, pch=21) +
+ # geom_label_repel(data=toplot, aes(x=lon, y=lat, label=paste0(new_classes, "-", Count))) +
+  facet_wrap(.~new_classes, ncol=2) +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  theme(axis.text.x = element_text(angle=45, vjust=0.5)) +
+  scale_fill_manual(values=c("orange","yellow","blue","lightblue","red"))
+
+
+ggsave("outputs/1400/base-points.pdf", width=8, height=8)
+
+```
+
+length distributions
+
+```{r}
+ggplot(coords2) +
+  geom_histogram(aes(x=`Fork Length`)) +
+  facet_wrap(.~new_classes, ncol=2) 
+```
+
+```{r}
+coords2 %>% group_by(new_classes) %>% mutate(Mean=mean(`Fork Length`)) %>% mutate(Count=n()) %>% select(new_classes, Mean, Count) %>% unique()
+```
+
+Test if two distributions are different?
+
+```{r}
+library("BSDA")
+fwm1<-coords2 %>% filter(new_classes=="FWM1")
+fwr1<-coords2 %>% filter(new_classes=="FWR1")
+
+sd(fwm1$`Fork Length`)
+sd(fwr1$`Fork Length`)
+```
+```{r}
+test<-z.test(fwm1$`Fork Length`, fwr1$`Fork Length`, sigma.x=5, sigma.y=4)
+```
+
+```{r}
+test
+```
+
+
+Let's check out the ship channel in detail:
+
+```{r}
+temp<-coords2 %>% filter(new_classes %in% c("FWM1", "FWR1")) %>% group_by(lat, lon, new_classes) %>% mutate(MeanFL = mean(`Fork Length`)) %>%
+                           mutate(Count=n()) %>% select(new_classes, lat, lon, MeanFL, Count) %>% unique()
+```
+
+```{r}
+base +
+  geom_point(data=temp, aes(x=lon, y=lat, fill=new_classes, size=MeanFL), alpha=0.75) +
+  facet_wrap(.~new_classes, ncol=2) +
+  xlab("Longitude") +
+  ylab("Latitude") +
+  theme(axis.text.x = element_text(angle=45, vjust=0.5)) +
+  scale_fill_manual(values=c("orange","yellow","blue","lightblue","red"))
+```
+
+
+I think I should run an association using the lengths across FWR1, FWM1
+```{r}
+
+bams<-read_tsv("bamlists/top2013.bamlist", col_names = c("Path"))
+bams$`Sequence File Name`<-gsub("bams/|_R1.sort.flt.bam","",bams$Path)
+
+lengths<-left_join(bams, coords2)
+write_tsv(select(lengths, `Fork Length`), "phenos/top2013.fl.phenos", col_names = FALSE)
+```
+
+Basic association test:
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/top2013.bamlist \
+-yQuant $HOME/ds-lh/phenos/top2013.fl.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1400/top-fl -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1400/top-fl.out 2> outputs/1300/top-fl.err &
+```

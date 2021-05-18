@@ -64,6 +64,8 @@ metanew<-left_join(seqs, newmeta)
 ```
 
 ```{r}
+needcoords<-metanew %>% filter(new_classes != "NA")
+write_csv(needcoords, "metadata/needcoords-05182021.csv")
 hits<-metanew %>% select(`Sequence File Name`, Sample_ID, old_id, change, new_classes, Number) %>% filter(new_classes != "NA")
 nrow(hits)
 
@@ -293,4 +295,14 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa > outputs/1300/top2902013.out 2> outputs/1300/top2902013.err &
 ````
 
+`(base) maccamp@farm:~/ds-lh$ gunzip -c outputs/1300/top2902013.lrt0.gz | wc -l`     
+87987   sites
+
+```{r}
+ddddf<-read_tsv(file="outputs/1300/top2902013.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(ddddf, -log10p) %>% head()
 ```
