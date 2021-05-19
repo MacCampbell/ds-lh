@@ -132,4 +132,42 @@ ddf<-read_tsv(file="outputs/1401/assoc05-fl.lrt0.gz") %>% mutate(log10p = -log10
 arrange(ddf, -log10p) %>% head()
 ```
 
-Keep in mind the model is additive (could be dominant)
+Keep in mind the model is additive (could be dominant).
+
+##Increasing Sample Sizes
+```{r}
+top75<-meta2013 %>% top_frac(.75, Counts) %>% mutate(Phenotype=ifelse(new_classes=="FWR1","FWR","MIG"))
+top75$Pheno<-gsub("FWR","0",top75$Phenotype)
+top75$Pheno<-gsub("MIG","1",top75$Pheno)
+top75 %>% group_by(new_classes) %>% summarize(Count=n())
+ggplot(top75) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~new_classes) +
+  xlim(0, max(top75$Counts))
+
+ggplot(top75) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~Phenotype) +
+  xlim(0, max(top75$Counts))
+```
+
+```{r}
+nrow(top75)
+nrow(top75)*0.75
+```
+
+123 individuals, to make bamlist phenotype files, using 92 inds (75% thresh)
+```{r}
+write_tsv(select(top75, Path), "bamlists/1401-75.bamlist", col_names = FALSE)
+write_tsv(select(top75, Pheno), "phenos/1401-75.phenos", col_names = FALSE)
+write_tsv(select(top75, `Fork Length`), "phenos/1401-75.fl.phenos", col_names = FALSE)
+```
+
+MIG/FWR
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401-75.bamlist \
+-yBin $HOME/ds-lh/phenos/1401-75.phenos -minMapQ 20 -minQ 20 -minInd 92 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1401/assoc05-75 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1401/assoc05-75.out 2> outputs/1401/assoc05-75.err &
+```
