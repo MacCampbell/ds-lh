@@ -1,0 +1,109 @@
+---
+title: '1401.1-genotypes'
+author: "Mac Campbell"
+date: "5/19/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warnin=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+library(gplots)
+library(viridis)
+
+```
+
+82 inds, 74 @ 90 thresh
+## Calling genotypes
+
+```{sh, eval=FALSE}
+srun -t 36:00:00 -p high --mem=32G --nodes=2 $HOME/angsd/angsd -minInd 74 -nthreads 12 \
+-bam $HOME/ds-lh/bamlists/1401.bamlist -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+-out $HOME/ds-lh/outputs/1401/snps \
+-minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/1401/snps.out 2> outputs/1401/snps.err &
+```
+
+Locally:
+```{sh, eval=FALSE}
+ plink --tped snps.tped --tfam snps.tfam --recodeA --out snps-geno-numeric --allow-extra-chr --noweb
+```
+
+12119 variants and 82 people pass filters and QC.
+
+```{r, eval=FALSE}
+snps <- read_delim("outputs/1401/snps-geno-numeric.raw", delim = " ") %>%
+  select(-IID, -SEX, -PAT, -MAT, -PHENOTYPE)
+save(snps, file="outputs/1401/snps.rda")
+```
+
+```{r}
+load("outputs/1401/snps.rda")
+```
+
+## Append Phenos and Tidy
+
+```{r}
+phenos<-read_tsv("phenos/1401.phenos", col_names=c("Pheno")) %>% mutate(Phenotype=ifelse(Pheno==0, "FWR","MIG"))
+
+data<-bind_cols(phenos,snps)
+cols<-phenos %>% mutate(Color=ifelse(Phenotype=="MIG","blue","red"))
+```
+
+
+Find overlap between association and SNPS
+```{r}
+df<-read_tsv(file="outputs/1401/assoc05.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>% # -log10 of p>1 results in a negative value, which seems nonsensical and doesn't affect adjp much
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+tops<-arrange(df, -log10p) %>% head(n=50) %>% mutate(Site=paste0(Chromosome,"_",Position))
+```
+have to wonder if the major is the same. Subset SNPs to tops.    
+```{r}
+options<-as_tibble(colnames(data)) %>% filter(!(value %in% c("Pheno","Phenotype","FID"))) %>%
+  separate(value, sep="_",  into=c("Chrom","Position","Base"), remove=FALSE) %>% mutate(Site=paste0(Chrom,"_",Position)) 
+options$Position <-as.numeric(options$Position)
+```
+This drops scaffolds.
+
+```{r}
+tops2<-inner_join(options,tops)
+nrow(tops2)
+```
+Subset
+```{r}
+snpsites<-snps[colnames(snps) %in% c(tops2$value)]
+```
+
+```{r}
+pdf("outputs/1401/heatmap-reordered-sites.pdf", width=11, height=14)
+
+
+heatmap.2(as.matrix(snpsites), labRow="", cexRow = 0.6,
+          labCol="",
+          colRow = cols$Color, RowSideColors = cols$Color,
+          trace="none",
+          key=FALSE, dendrogram=c("row"), srtCol=45, margins = c(10,5), na.color=viridis(1),
+          col=viridis,
+          hclustfun = function(x) hclust(x,method = 'ward.D'))
+
+dev.off()
+
+pdf("outputs/1401/heatmap-sites.pdf", width=11, height=14)
+
+
+heatmap.2(as.matrix(snpsites), labRow="", cexRow = 0.6,
+          labCol="",
+          colRow = cols$Color, RowSideColors = cols$Color,
+          trace="none",
+          key=FALSE, dendrogram=c("row"), srtCol=45, margins = c(10,5), na.color=viridis(1),
+          col=viridis, Colv = FALSE,
+          hclustfun = function(x) hclust(x,method = 'ward.D'))
+
+dev.off()
+```

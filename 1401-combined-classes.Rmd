@@ -265,3 +265,70 @@ ggplot(top75, aes(x = `Fork Length`, fill=Phenotype)) +                         
   theme_bw() +
   theme(panel.grid = element_blank())
 ```
+
+## Length arranged by sample date
+```{r}
+mm<-metanew %>% select(Sample_ID, Year, SampleDate, `Fork Length`, new_classes, station, lat, lon) %>% filter(Year==2013) %>%
+  filter(new_classes %in% c("FWR1", "FWM1", "FWM2")) %>%
+  mutate(Phenotype=ifelse(new_classes=="FWR1","FWR","MIG")) %>%
+  separate(SampleDate, c("Day","Month","Year"))
+mm$Day<-as.numeric(mm$Day)
+mm$Year<-as.numeric(mm$Year)
+mm$Month<-factor(mm$Month, levels = c("Jan","Feb","Mar"))
+```
+
+Distribution across months:
+```{r}
+mm %>% group_by(Phenotype, Month) %>% summarize(Count=n()) %>% select(Phenotype, Month, Count)
+```
+Distribution across days:
+```{r}
+mm %>% group_by(Phenotype, Day, Month) %>%  summarize(Count=n()) %>% select(Phenotype, Month, Day, Count) %>% arrange(Month, Day)
+nrow(mm)
+mm %>% group_by(Phenotype) %>% summarize(Count=n())
+```
+
+These are largely +/- a day.
+
+```{r}
+ggplot(mm, aes(x = `Fork Length`, fill=Phenotype)) +
+  geom_density(alpha = 0.5) +
+  facet_grid(Phenotype~Month) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  ylab("Density\n") +
+  xlab("\nFork Length") +
+  scale_fill_manual(values=c("red","blue"))
+
+ggsave("outputs/1401/FWR-MIG-ForkLengths.jpg")
+```
+
+Test bt months:
+```{r}
+tester<-function(month, dataframe) {
+
+  MIG<-dataframe %>% filter(Month== month, Phenotype == "MIG")
+  FWR<-dataframe %>% filter(Month== month, Phenotype == "FWR")
+
+  sx<-sd(MIG$`Fork Length`)
+  sy<-sd(FWR$`Fork Length`)
+
+ztest<-z.test(MIG$`Fork Length`, FWR$`Fork Length`, sigma.x=sx, sigma.y=sy)
+return(ztest)
+
+}
+```
+
+```{r}
+tester("Jan", mm)
+```
+
+```{r}
+tester("Feb", mm)
+```
+
+```{r}
+tester("Mar", mm)
+```
+
+FL is significantly different across Months.
