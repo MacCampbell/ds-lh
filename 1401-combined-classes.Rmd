@@ -71,14 +71,14 @@ ggplot(top2013) +
 82 individuals, to make bamlist phenotype files, using 62 inds (75% thresh)
 ```{r}
 write_tsv(select(top2013, Path), "bamlists/1401.bamlist", col_names = FALSE)
-write_tsv(select(top2013, Pheno), "bamlists/1401.pheno", col_names = FALSE)
-write_tsv(select(top2013, `Fork Length`), "bamlists/1401.fl.pheno", col_names = FALSE)
+write_tsv(select(top2013, Pheno), "phenos//1401.phenos", col_names = FALSE)
+write_tsv(select(top2013, `Fork Length`), "phenos/1401.fl.phenos", col_names = FALSE)
 ```
 
 Against MIG/FWR
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401.bamlist \
--yBin $HOME/ds-lh/phenos/1401.pheno -minMapQ 20 -minQ 20 -minInd 62 -doAsso 1 -GL 1 \
+-yBin $HOME/ds-lh/phenos/1401.phenos -minMapQ 20 -minQ 20 -minInd 62 -doAsso 1 -GL 1 \
 -out $HOME/ds-lh/outputs/1400/assoc05 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 > outputs/1400/assoc05.out 2> outputs/1400/assoc05.err &
@@ -87,7 +87,7 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 With phenos as covariants
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401.bamlist \
--yQuant$HOME/ds-lh/phenos/1401.pheno -cov $HOME/ds-lh/phenos/1401.pheno -minMapQ 20 -minQ 20 -minInd 62 -doAsso 1 -GL 1 \
+-yQuant$HOME/ds-lh/phenos/1401.phenos -cov $HOME/ds-lh/phenos/1401.phenos -minMapQ 20 -minQ 20 -minInd 62 -doAsso 1 -GL 1 \
 -out $HOME/ds-lh/outputs/1400/assoc05-fl -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 > outputs/1400/assoc05-fl.out 2> outputs/1400/assoc05-fl.err &
