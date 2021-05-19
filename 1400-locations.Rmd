@@ -155,7 +155,7 @@ test2013
 
 Basic association test, requires doAsso 2 for quantative traits which requires doPost 1
 ```{sh, eval=FALSE}
-srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/top2013.bamlist \
+srun -p high -t 48:00:00 --mem=32G --nodes=1 $HOME/angsd/angsd -P 12  -bam $HOME/ds-lh/bamlists/top2013.bamlist \
 -yQuant $HOME/ds-lh/phenos/top2013.fl.phenos -minMapQ 20 -minQ 20 -minInd 51 -doAsso 2 -doPost 1 -GL 1 \
 -out $HOME/ds-lh/outputs/1400/top-fl -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt> outputs/1400/top-fl.out 2> outputs/1400/top-fl.err &
@@ -172,8 +172,6 @@ arrange(ldf, -log10p) %>% head()
 
 Bump up sample sizes:
 ```{r}
-
-
 bams<-read_tsv("bamlists/top902013.bamlist", col_names = c("Path"))
 bams$`Sequence File Name`<-gsub("bams/|_R1.sort.flt.bam","",bams$Path)
 
@@ -192,6 +190,24 @@ test2013<-z.test(fwm12013$`Fork Length`, fwr12013$`Fork Length`, sigma.x=4.5, si
 test2013
 ```
 
+```{r}
+
+ll<-lengths %>% group_by(new_classes, lat, lon) %>% mutate(Count=n()) %>% mutate(MeanFL=mean(`Fork Length`)) %>% select(new_classes, Count, MeanFL, lat, lon) %>% unique()
+
+base +
+ geom_point(data=ll, aes(x=lon, y=lat, fill=new_classes, size=Count), alpha=0.75, pch=21) +
+ # geom_label_repel(data=toplot, aes(x=lon, y=lat, label=paste0(new_classes, "-", Count))) +
+  facet_wrap(.~new_classes, ncol=2) +
+  xlab("") +
+  ylab("") +
+  theme(axis.text = element_blank()) +
+  theme(axis.ticks = element_blank()) +
+  #theme(axis.text.x = element_text(angle=45, vjust=0.5)) +
+  scale_fill_manual(values=c("blue","red"))
+
+ggsave("outputs/1400/2012-classes.pdf")
+```
+
 139 inds (*.75) 104.25    
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/top902013.bamlist \
@@ -199,4 +215,70 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -out $HOME/ds-lh/outputs/1400/top2902013.fl -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt > outputs/1400/top2902013.out 2> outputs/1400/top2902013.err &
 ````
+
+```{r}
+lddf<-read_tsv(file="outputs/1400/top2902013.fl.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(lddf, -log10p) %>% head()
+```
+Including phenos as covariates.
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/top902013.bamlist \
+-yQuant $HOME/ds-lh/phenos/top902013.fl.phenos -cov $HOME/ds-lh/phenos/top902013.phenos -minMapQ 20 -minQ 20 -minInd 105 -doAsso 2 -doPost 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1400/top2902013-fl-cov -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt > outputs/1400/top2902013-cov.out 2> outputs/1400/top2902013-cov.err &
+````
+
+```{r}
+ldddf<-read_tsv(file="outputs/1400/top2902013-fl-cov.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(ldddf, -log10p) %>% head()
+```
+
+##Previously..
+I did have significant results with a few samples, where were they found?
+
+```{r}
+
+bams2012<-read_tsv("bamlists/2012-newgenome05.bamlist", col_names = c("Path"))
+bams2012$`Sequence File Name`<-gsub("bams/|_R1.sort.flt.bam","",bams2012$Path)
+
+lengths2012<-left_join(bams2012, coords2) %>% filter(`Sequence File Name` != "Ht20-17_2012_A03")
+
+lengths2012 %>% group_by(new_classes) %>% mutate(Count=n()) %>% mutate(MeanFL=mean(`Fork Length`)) %>% select(new_classes, Count, MeanFL) %>% unique()
+
+fwm12012<-lengths2012 %>% filter(new_classes=="FWM1")
+fwr12012<-lengths2012 %>% filter(new_classes=="FWR1")
+
+sd(fwm12012$`Fork Length`)
+sd(fwr12012$`Fork Length`)
+
+test2012<-z.test(fwm12012$`Fork Length`, fwr12012$`Fork Length`, sigma.x=3.6, sigma.y=3.3)
+test2012
+```
+
+```{r}
+ll2012<-lengths2012 %>% group_by(new_classes, lat, lon) %>% mutate(Count=n()) %>% mutate(MeanFL=mean(`Fork Length`)) %>% select(new_classes, Count, MeanFL, lat, lon) %>% unique()
+
+base +
+ geom_point(data=ll2012, aes(x=lon, y=lat, fill=new_classes, size=Count), alpha=0.75, pch=21) +
+ # geom_label_repel(data=toplot, aes(x=lon, y=lat, label=paste0(new_classes, "-", Count))) +
+  facet_wrap(.~new_classes, ncol=2) +
+  xlab("") +
+  ylab("") +
+  theme(axis.text = element_blank()) +
+  theme(axis.ticks = element_blank()) +
+  #theme(axis.text.x = element_text(angle=45, vjust=0.5)) +
+  scale_fill_manual(values=c("blue","red","yellow"))
+
+```
+
+Certainly not what I expected. What's the deal with the samples that were added later? Maybe I should include the two categories as MIG....
 

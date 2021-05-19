@@ -1,0 +1,95 @@
+---
+title: "1401-combined-classes"
+author: "Mac Campbell"
+date: "5/18/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+
+## Combined classes!
+
+```{r}
+metanew<-read_csv("metadata/genetics-oto-intersect-05182021_JH.csv")
+
+strict2013<-metanew %>% select(`Sequence File Name`, new_classes, Year, `Fork Length`) %>% filter(Year==2013) %>% 
+  filter(new_classes %in% c("FWR1", "FWM1", "FWM2")) %>%
+  mutate(File=paste0(`Sequence File Name`, "_R1.sort.flt.bam")) %>%
+  mutate(Path=paste0("bams/",File))
+
+```
+
+```{r}
+# include coverage
+files<-read_tsv("outputs/1300/counts.files.txt", col_names="File")
+counts<-read_tsv("outputs/1300/counts.txt", col_names="Counts")
+counts$Counts<-gsub(" + 0 mapped (100.00% : N/A)", "", counts$Counts, fixed = TRUE)
+comb<-bind_cols(files, counts)
+comb$Counts<-as.numeric(comb$Counts)
+```
+
+```{r}
+meta2013<-left_join(strict2013, comb) 
+
+dat<-meta2013 %>% filter(is.na(Counts)) 
+
+dat
+```
+
+Huh. Well, that's great, missing three individuals.... Finishing mapping, will come back later to fix.
+
+## Now to filter on coverage.
+```{r}
+ggplot(meta2013) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~new_classes)
+```
+
+```{r}
+top2013<-meta2013 %>% top_frac(.5, Counts) %>% mutate(Phenotype=ifelse(new_classes=="FWR1","FWR","MIG"))
+top2013$Pheno<-gsub("FWR","0",top2013$Phenotype)
+top2013$Pheno<-gsub("MIG","1",top2013$Pheno)
+top2013 %>% group_by(new_classes) %>% summarize(Count=n())
+ggplot(top2013) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~new_classes) +
+  xlim(0, max(top2013$Counts))
+
+ggplot(top2013) +
+  geom_histogram(aes(Counts)) +
+  facet_wrap(.~Phenotype) +
+  xlim(0, max(top2013$Counts))
+```
+
+82 individuals, to make bamlist phenotype files, using 62 inds (75% thresh)
+```{r}
+write_tsv(select(top2013, Path), "bamlists/1401.bamlist", col_names = FALSE)
+write_tsv(select(top2013, Pheno), "bamlists/1401.pheno", col_names = FALSE)
+write_tsv(select(top2013, `Fork Length`), "bamlists/1401.fl.pheno", col_names = FALSE)
+```
+
+Against MIG/FWR
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401.bamlist \
+-yBin $HOME/ds-lh/phenos/1401.pheno -minMapQ 20 -minQ 20 -minInd 62 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1400/assoc05 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1400/assoc05.out 2> outputs/1400/assoc05.err &
+```
+
+With phenos as covariants
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401.bamlist \
+-yQuant$HOME/ds-lh/phenos/1401.pheno -cov $HOME/ds-lh/phenos/1401.pheno -minMapQ 20 -minQ 20 -minInd 62 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1400/assoc05-fl -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1400/assoc05-fl.out 2> outputs/1400/assoc05-fl.err &
+```
+
