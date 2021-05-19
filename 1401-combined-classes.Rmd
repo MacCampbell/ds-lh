@@ -79,17 +79,57 @@ Against MIG/FWR
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401.bamlist \
 -yBin $HOME/ds-lh/phenos/1401.phenos -minMapQ 20 -minQ 20 -minInd 62 -doAsso 1 -GL 1 \
--out $HOME/ds-lh/outputs/1400/assoc05 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-out $HOME/ds-lh/outputs/1401/assoc05 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
-> outputs/1400/assoc05.out 2> outputs/1400/assoc05.err &
+> outputs/1401/assoc05.out 2> outputs/1401/assoc05.err &
 ```
 
+```{r}
+df<-read_tsv(file="outputs/1401/assoc05.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>% # -log10 of p>1 results in a negative value, which seems nonsensical and doesn't affect adjp much
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(df, -log10p) %>% head()
+```
+
+What is our significance thresh?
+```{r}
+-log10(0.05/nrow(df))
+```
+
+```{r}
+df2 <- filter(df, grepl("lg",Chromosome))
+highest<-df2 %>% top_frac(.001,log10p) 
+
+ggplot(df2) +
+  geom_hline(yintercept = -log10(0.05/nrow(df)), col="black", alpha=0.5) +
+  geom_point(aes(x=Position, y=log10p), alpha=0.5, fill="darkgrey") +
+  geom_point(data=highest, aes(x=Position,y=log10p), pch=21, fill="cyan") +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~Chromosome, ncol=10, scales="free_x") +
+#  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+```  
+  
 With phenos as covariants
 ```{sh, eval=FALSE}
 srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401.bamlist \
--yQuant$HOME/ds-lh/phenos/1401.phenos -cov $HOME/ds-lh/phenos/1401.phenos -minMapQ 20 -minQ 20 -minInd 62 -doAsso 1 -GL 1 \
--out $HOME/ds-lh/outputs/1400/assoc05-fl -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-yQuant $HOME/ds-lh/phenos/1401.fl.phenos -cov $HOME/ds-lh/phenos/1401.phenos -minMapQ 20 -minQ 20 -minInd 62 -doAsso 2 -doPost 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1401/assoc05-fl -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
-> outputs/1400/assoc05-fl.out 2> outputs/1400/assoc05-fl.err &
+> outputs/1401/assoc05-fl.out 2> outputs/1401/assoc05-fl.err &
 ```
 
+
+```{r}
+ddf<-read_tsv(file="outputs/1401/assoc05-fl.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(ddf, -log10p) %>% head()
+```
+
+Keep in mind the model is additive (could be dominant)
