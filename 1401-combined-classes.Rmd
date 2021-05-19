@@ -11,6 +11,7 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 
 ```{r}
 library(tidyverse)
+library(BSDA)
 ```
 
 
@@ -33,6 +34,23 @@ counts<-read_tsv("outputs/1300/counts.txt", col_names="Counts")
 counts$Counts<-gsub(" + 0 mapped (100.00% : N/A)", "", counts$Counts, fixed = TRUE)
 comb<-bind_cols(files, counts)
 comb$Counts<-as.numeric(comb$Counts)
+
+## adding three missing samples
+counts2<-read_tsv("outputs/1401/toFinish.txt", col_names="Counts")
+counts2$Counts<-gsub(" + 0 mapped (100.00% : N/A)", "", counts2$Counts, fixed = TRUE)
+
+counts2$File<-c("Ht20-49_2012_A07_R1.sort.flt.bam","Ht20-94_2012_F12_R1.sort.flt.bam","Ht19-38_2012_F05_R1.sort.flt.bam")
+counts2$Counts<-as.numeric(counts2$Counts)
+
+comb<-bind_rows(comb,counts2)
+```
+
+Fixed later
+```{sh, eval=FALSE}
+samtools flagstat Ht20-49_2012_A07_R1.sort.flt.bam | grep mapped | head -n 1 >> toFinish.txt
+samtools flagstat Ht20-94_2012_F12_R1.sort.flt.bam | grep mapped | head -n 1 >> toFinish.txt
+samtools flagstat Ht19-38_2012_F05_R1.sort.flt.bam | grep mapped | head -n 1 >> toFinish.txt
+
 ```
 
 ```{r}
@@ -43,7 +61,8 @@ dat<-meta2013 %>% filter(is.na(Counts))
 dat
 ```
 
-Huh. Well, that's great, missing three individuals.... Finishing mapping, will come back later to fix.
+No missing individuals
+
 
 ## Now to filter on coverage.
 ```{r}
@@ -68,12 +87,19 @@ ggplot(top2013) +
   xlim(0, max(top2013$Counts))
 ```
 
+```{r}
+nrow(top2013)
+.75*nrow(top2013)
+```
+
 82 individuals, to make bamlist phenotype files, using 62 inds (75% thresh)
 ```{r}
 write_tsv(select(top2013, Path), "bamlists/1401.bamlist", col_names = FALSE)
-write_tsv(select(top2013, Pheno), "phenos//1401.phenos", col_names = FALSE)
+write_tsv(select(top2013, Pheno), "phenos/1401.phenos", col_names = FALSE)
 write_tsv(select(top2013, `Fork Length`), "phenos/1401.fl.phenos", col_names = FALSE)
 ```
+
+No change in numbers, but change in composition from 3 inds.
 
 Against MIG/FWR
 ```{sh, eval=FALSE}
@@ -112,6 +138,32 @@ ggplot(df2) +
 #  scale_color_gradient(low="darkgrey", high="cyan") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
 ```  
+
+And sizes:
+```{r}
+MIG<-top2013 %>% filter(Phenotype == "MIG")
+FWR<-top2013 %>% filter(Phenotype == "FWR")
+
+sd(MIG$`Fork Length`)
+sd(FWR$`Fork Length`)
+
+test2013<-z.test(MIG$`Fork Length`, FWR$`Fork Length`, sigma.x=4, sigma.y=3.6)
+test2013
+```
+Migratory fish are significantly bigger.
+```{r}
+ggplot(top2013, aes(x = `Fork Length`, fill=Phenotype)) +                           # Draw density above histogram
+  #geom_histogram(aes(y = ..density..)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(.~Phenotype, ncol=1) +
+  theme_bw() +
+  theme(panel.grid = element_blank()) +
+  xlab("\nFork Length") +
+  ylab("Density\n") 
+
+ggsave("outputs/1401/top2013-fl-density.jpg")
+```
+
   
 With phenos as covariants
 ```{sh, eval=FALSE}
@@ -170,4 +222,46 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -out $HOME/ds-lh/outputs/1401/assoc05-75 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 > outputs/1401/assoc05-75.out 2> outputs/1401/assoc05-75.err &
+```
+
+```{r}
+dddf<-read_tsv(file="outputs/1401/assoc05-75.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(dddf, -log10p) %>% head()
+```
+
+Sizes
+```{r}
+MIG2<-top75 %>% filter(Phenotype == "MIG")
+FWR2<-top75 %>% filter(Phenotype == "FWR")
+
+nrow(MIG2)
+nrow(FWR2)
+
+sd(MIG2$`Fork Length`)
+sd(FWR2$`Fork Length`)
+
+test75<-z.test(MIG2$`Fork Length`, FWR2$`Fork Length`, sigma.x=4, sigma.y=3.7)
+test75
+```
+
+Plotting more interestingly: https://statisticsglobe.com/ggplot2-histogram-in-r-geom_histogram-function
+
+```{r}
+
+ggplot(top75, aes(x = `Fork Length`, fill = Phenotype)) +            # Draw two histograms in same plot
+  geom_histogram(alpha = 0.5, position = "identity") +
+  scale_fill_manual(values=c("red","blue"))
+ 
+```
+```{r}
+ggplot(top75, aes(x = `Fork Length`, fill=Phenotype)) +                           # Draw density above histogram
+  #geom_histogram(aes(y = ..density..)) +
+  geom_density(alpha = 0.5) +
+  facet_wrap(.~Phenotype, ncol=1) +
+  theme_bw() +
+  theme(panel.grid = element_blank())
 ```
