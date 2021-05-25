@@ -1,0 +1,215 @@
+---
+title: "1401.3-growth-123"
+author: "Mac Campbell"
+date: "5/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library("tidyverse")
+library("RColorBrewer")
+```
+
+## Let's check out growth
+123 individuals, to make bamlist phenotype files, using 92 inds (75% thresh)
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401-75.bamlist \
+-yQuant $HOME/ds-lh/phenos/1401-75.fl.phenos -cov $HOME/ds-lh/phenos/1401-75.phenos -minMapQ 20 -minQ 20 -minInd 92  \
+-doAsso 2 -doPost 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1401/assoc75-fl -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1401/assoc75-fl.out 2> outputs/1401/assoc75-fl.err &
+```
+
+
+```{r}
+df<-read_tsv(file="outputs/1401/assoc75-fl.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+  group_by(Chromosome) %>%
+  mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+  mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+arrange(df, -log10p) %>% head()
+
+```
+Make a cutoff
+```{r}
+
+variants<-nrow(df)
+#Number of expected variants
+num<-50
+p.T = num/variants 
+prior.odds = p.T/(1-p.T) 
+pwr = 1 #upper bound for power --> upper bound for alpha 
+post.odds = 0.95/(1-0.95) 
+alpha = prior.odds*pwr/post.odds 
+paste(signif(alpha,3)) 
+-log10(alpha)
+```
+
+```{r}
+df %>% dplyr::filter(log10p > -log10(alpha)) 
+```
+
+```{r}
+ddf <- filter(df, grepl("lg",Chromosome))
+highest<-ddf %>% top_frac(.005,log10p) 
+
+ggplot(ddf) +
+  geom_hline(yintercept = -log10(0.05/nrow(df)), col="black", alpha=0.5) +
+  geom_hline(yintercept= -log10(alpha), col="black", linetype=2, alpha=0.5) +
+  geom_point(aes(x=Position, y=log10p), alpha=0.5, fill="darkgrey") +
+  geom_point(data=highest, aes(x=Position,y=log10p), pch=21, fill="cyan") +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~Chromosome, ncol=10, scales="free_x") +
+#  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+```
+
+## MIG/FWR
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401-75.bamlist \
+-yBin $HOME/ds-lh/phenos/1401-75.phenos -minMapQ 20 -minQ 20 -minInd 92 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1401/assoc05-75 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1401/assoc05-75.out 2> outputs/1401/assoc05-75.err &
+```
+
+```{r}
+dddf<-read_tsv(file="outputs/1401/assoc05-75.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+  group_by(Chromosome) %>%
+  mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+  mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+arrange(dddf, -log10p) %>% head()
+```
+
+```{r}
+
+variants<-nrow(dddf)
+#Number of expected variants
+num<-50
+p.T = num/variants 
+prior.odds = p.T/(1-p.T) 
+pwr = 1 #upper bound for power --> upper bound for alpha 
+post.odds = 0.95/(1-0.95) 
+alpha = prior.odds*pwr/post.odds 
+paste(signif(alpha,3)) 
+-log10(alpha)
+```
+```{r}
+dddf %>% dplyr::filter(log10p > -log10(alpha)) 
+```
+Plot:
+
+```{r}
+dddf2 <- filter(dddf, grepl("lg",Chromosome))
+highest2<-dddf2 %>% top_frac(.001,log10p) 
+
+ggplot(dddf2) +
+  geom_hline(yintercept = -log10(0.05/nrow(df)), col="black", alpha=0.5) +
+  geom_hline(yintercept= -log10(alpha), col="black", linetype=2, alpha=0.5) +
+  geom_point(aes(x=Position, y=log10p), alpha=0.5, fill="darkgrey") +
+  geom_point(data=highest2, aes(x=Position,y=log10p), pch=21, fill="cyan") +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~Chromosome, ncol=10, scales="free_x") +
+#  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+```
+
+
+Manhattan style!!!
+```{r}
+data<-dddf # %>% filter(Chromosome %in% c("lg01","lg02"))
+dd <- data %>% ungroup %>% mutate(Index=1:n())
+dd$Chromosome<-as.factor(dd$Chromosome)
+
+chroms<-dd %>% group_by(Chromosome) %>% mutate(Start=min(Index), Stop=max(Index)) %>% 
+  select(Chromosome,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+outliers <- dd %>% filter(log10p >= -log10(alpha))
+#Make enough colors
+nb.cols <- nrow(chroms)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+#randomize
+mycolors<-sample(mycolors)
+
+ggplot(dd) +
+  geom_point(data=dd, aes(x=Index, y=log10p, color=Chromosome), alpha=0.75, cex=0.5) +
+  geom_point(data=outliers, aes(x=Index, y=log10p, fill=Chromosome), pch=21, cex=2, alpha=0.9) +
+  geom_hline(yintercept = -log10(0.05/nrow(df)), col="black", linetype=2, alpha=0.5) +
+  geom_hline(yintercept= -log10(alpha), col="black", linetype=1, alpha=0.5) +
+  theme_bw() +
+  scale_x_continuous(breaks=chroms$Position, labels=chroms$Chromosome) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=6)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  scale_fill_manual(breaks=unique(dd$Chromosome), values=mycolors) +
+  ylab("-log10(p)") +
+  xlab("Chromosome") +
+  ggtitle("FWR vs MIG Comparison") +
+  theme(plot.title = element_text(hjust=0.5) )
+
+ggsave("outputs/1401/123-GWAS-Manhattan.jpg", width=7, height=5)
+
+```
+
+
+It seems to me that we should separate these out by class and then search for growth related genes and see if they are concordant.
+
+##Growth x class
+```{r}
+top2013<-read_csv("outputs/1401/top-75.csv")
+mig<-top2013 %>% filter(Phenotype=="MIG")
+nrow(mig)
+nrow(mig)*.75
+
+fwr<-top2013 %>% filter(Phenotype=="FWR")
+nrow(fwr)
+nrow(fwr)*.75
+
+#Create bamlists/pheno files
+write_tsv(select(mig, Path), "bamlists/1401-mig.bamlist", col_names = FALSE)
+write_tsv(select(mig, Pheno), "phenos/1401-mig.phenos", col_names = FALSE)
+write_tsv(select(mig, `Fork Length`), "phenos/1401-mig.fl.phenos", col_names = FALSE)
+
+write_tsv(select(fwr, Path), "bamlists/1401-fwr.bamlist", col_names = FALSE)
+write_tsv(select(fwr, Pheno), "phenos/1401-fwr.phenos", col_names = FALSE)
+write_tsv(select(fwr, `Fork Length`), "phenos/1401-fwr.fl.phenos", col_names = FALSE)
+```
+
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401-mig.bamlist \
+-yQuant $HOME/ds-lh/phenos/1401-mig.fl.phenos -minMapQ 20 -minQ 20 -minInd 47  \
+-doAsso 2 -doPost 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1401/assoc75-mig -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1401/assoc75-mig.out 2> outputs/1401/assoc75-mig.err &
+```
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401-fwr.bamlist \
+-yQuant $HOME/ds-lh/phenos/1401-fwr.fl.phenos -minMapQ 20 -minQ 20 -minInd 46  \
+-doAsso 2 -doPost 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1401/assoc75-fwr -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1401/assoc75-fwr.out 2> outputs/1401/assoc75-fwr.err &
+```

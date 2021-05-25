@@ -12,6 +12,7 @@ knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
 ```{r}
 library(tidyverse)
 library(BSDA)
+library(ggmap)
 ```
 
 
@@ -20,7 +21,7 @@ library(BSDA)
 ```{r}
 metanew<-read_csv("metadata/genetics-oto-intersect-05182021_JH.csv")
 
-strict2013<-metanew %>% select(`Sequence File Name`, new_classes, Year, `Fork Length`) %>% filter(Year==2013) %>% 
+strict2013<-metanew %>% select(`Sequence File Name`, new_classes, Year, `Fork Length`, lat, lon, Sample_ID) %>% filter(Year==2013) %>% 
   filter(new_classes %in% c("FWR1", "FWM1", "FWM2")) %>%
   mutate(File=paste0(`Sequence File Name`, "_R1.sort.flt.bam")) %>%
   mutate(Path=paste0("bams/",File))
@@ -59,6 +60,7 @@ meta2013<-left_join(strict2013, comb)
 dat<-meta2013 %>% filter(is.na(Counts)) 
 
 dat
+meta2013 %>% group_by(new_classes) %>% summarize(Count=n())
 ```
 
 No missing individuals
@@ -90,6 +92,35 @@ ggplot(top2013) +
 ```{r}
 nrow(top2013)
 .75*nrow(top2013)
+
+write_csv(top2013, "outputs/1401/top-2013.csv")
+
+```
+
+Plot these guys:
+
+```{r}
+mapbox <- c(-122.5, 37.75, -121.25, 38.5)
+sfe <- get_map(location = mapbox, source = "stamen", maptype = "terrain", zoom = 9)
+base<-ggmap(sfe)
+```
+
+```{r}
+toplot<-top2013  %>% mutate(Phenotype=ifelse(new_classes=="FWR1","FWR","MIG")) %>%
+  group_by(Phenotype, lon, lat) %>%
+   summarize(Count=n()) %>% unique()
+
+base +
+  geom_point(data=toplot, aes(x=lon, y=lat, fill=Phenotype, size=Count), alpha=0.75, pch=21) +
+ # geom_label_repel(data=toplot, aes(x=lon, y=lat, label=paste0(new_classes, "-", Count))) +
+  facet_wrap(.~Phenotype, ncol=2) +
+  xlab("") +
+  ylab("") +
+  theme(axis.text = element_blank()) +
+  theme(axis.ticks = element_blank()) +
+  scale_fill_manual(values=c("red","blue"))
+
+ggsave("outputs/1401/combined-classes-map-2012.jpg")
 ```
 
 82 individuals, to make bamlist phenotype files, using 62 inds (75% thresh)
@@ -122,6 +153,20 @@ arrange(df, -log10p) %>% head()
 What is our significance thresh?
 ```{r}
 -log10(0.05/nrow(df))
+
+#or
+
+
+variants<-nrow(df)
+#Number of expected variants
+num<-10
+p.T = num/variants 
+prior.odds = p.T/(1-p.T) 
+pwr = 1 #upper bound for power --> upper bound for alpha 
+post.odds = 0.95/(1-0.95) 
+alpha = prior.odds*pwr/post.odds 
+paste(signif(alpha,3)) 
+-log10(alpha)
 ```
 
 ```{r}
@@ -137,6 +182,8 @@ ggplot(df2) +
   facet_wrap(.~Chromosome, ncol=10, scales="free_x") +
 #  scale_color_gradient(low="darkgrey", high="cyan") +
   theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+ggsave("outputs/1401/gwas.jpg")
 ```  
 
 And sizes:
@@ -206,6 +253,7 @@ ggplot(top75) +
 ```{r}
 nrow(top75)
 nrow(top75)*0.75
+write_csv(top75, "outputs/1401/top-75.csv")
 ```
 
 123 individuals, to make bamlist phenotype files, using 92 inds (75% thresh)
@@ -228,11 +276,54 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 dddf<-read_tsv(file="outputs/1401/assoc05-75.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
   filter(log10p>=0 & log10p != "Inf") %>%
   mutate(p = dchisq(LRT, df=1)) %>%
-  mutate(adjp = p.adjust(p, method = "bonferroni"))
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+  group_by(Chromosome) %>%
+  mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+  mutate(BHfdrchrom = p.adjust(p, method = "BH"))
 
 arrange(dddf, -log10p) %>% head()
 ```
 
+Calculate chromosome signficance?
+https://www.nature.com/articles/s41598-020-63423-8    
+
+
+Prior odds way:https://www.mv.helsinki.fi/home/mjxpirin/GWAS_course/material/GWAS2.html 
+
+```{r}
+
+variants<-nrow(dddf)
+#Number of expected variants
+num<-10
+p.T = num/variants 
+prior.odds = p.T/(1-p.T) 
+pwr = 1 #upper bound for power --> upper bound for alpha 
+post.odds = 0.95/(1-0.95) 
+alpha = prior.odds*pwr/post.odds 
+paste(signif(alpha,3)) 
+-log10(alpha)
+```
+
+Plot:
+
+```{r}
+dddf2 <- filter(dddf, grepl("lg",Chromosome))
+highest2<-dddf2 %>% top_frac(.001,log10p) 
+
+ggplot(dddf2) +
+  geom_hline(yintercept = -log10(0.05/nrow(df)), col="black", alpha=0.5) +
+  geom_hline(yintercept= -log10(alpha), col="black", linetype=2, alpha=0.5) +
+  geom_point(aes(x=Position, y=log10p), alpha=0.5, fill="darkgrey") +
+  geom_point(data=highest2, aes(x=Position,y=log10p), pch=21, fill="cyan") +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~Chromosome, ncol=10, scales="free_x") +
+#  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+
+ggsave("outputs/1401/gwas-123.jpg")
+```
 Sizes
 ```{r}
 MIG2<-top75 %>% filter(Phenotype == "MIG")
@@ -287,6 +378,22 @@ mm %>% group_by(Phenotype, Day, Month) %>%  summarize(Count=n()) %>% select(Phen
 nrow(mm)
 mm %>% group_by(Phenotype) %>% summarize(Count=n())
 ```
+Distribution within sampling locations. 
+```{r}
+temp<-mm %>% group_by(Phenotype, Month, lat, lon, station) %>% summarize(Count=n()) %>% filter(lat > 38.2)
+
+plot<-base + geom_point(data=temp, aes(x=lon, y=lat, size=Count, color=Phenotype)) + facet_wrap(.~Phenotype)
+
+plot
+temp
+
+mm %>%filter(station %in% c(715, 719)) %>% group_by(Phenotype, Month, station) %>% 
+  mutate(Mean=mean(`Fork Length`)) %>% mutate(SampleSize=n()) %>% 
+  select(Phenotype, Month, station, Mean, SampleSize) %>% unique()
+```
+
+Not a lot of overlap in sample sizes for the fish in the canal.
+
 
 These are largely +/- a day.
 
@@ -332,3 +439,94 @@ tester("Mar", mm)
 ```
 
 FL is significantly different across Months.
+
+## Alternatives
+Trying dominant and recessive models.
+```{r}
+arrange(df, -log10p) %>% head()
+```
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401.bamlist \
+-yBin $HOME/ds-lh/phenos/1401.phenos -minMapQ 20 -minQ 20 -minInd 62 -doAsso 1 -model 2 -GL 1 \
+-out $HOME/ds-lh/outputs/1401/assoc05-m2 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1401/assoc05-m2.out 2> outputs/1401/assoc05-m2.err &
+```
+
+```{r}
+dfm2<-read_tsv(file="outputs/1401/assoc05-m2.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>% # -log10 of p>1 results in a negative value, which seems nonsensical and doesn't affect adjp much
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(dfm2, -log10p) %>% head()
+```
+
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401.bamlist \
+-yBin $HOME/ds-lh/phenos/1401.phenos -minMapQ 20 -minQ 20 -minInd 62 -doAsso 1 -model 3 -GL 1 \
+-out $HOME/ds-lh/outputs/1401/assoc05-m3 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1401/assoc05-m3.out 2> outputs/1401/assoc05-m3.err &
+```
+
+
+```{r}
+dfm3<-read_tsv(file="outputs/1401/assoc05-m3.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>% # -log10 of p>1 results in a negative value, which seems nonsensical and doesn't affect adjp much
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(dfm3, -log10p) %>% head()
+```
+
+That didn't do anything!!!
+
+Trying -minCount to 2, default is 10
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401.bamlist \
+-yBin $HOME/ds-lh/phenos/1401.phenos -minMapQ 20 -minQ 20 -minInd 62 -doAsso 1 -GL 1 -minCount 2 \
+-out $HOME/ds-lh/outputs/1401/assoc05-mincount -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1401/assoc05-mincount.out 2> outputs/1401/assoc05-mincount.err &
+```
+
+```{r}
+dfmin<-read_tsv(file="outputs/1401/assoc05-mincount.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>% # -log10 of p>1 results in a negative value, which seems nonsensical and doesn't affect adjp much
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(dfmin, -log10p) %>% head()
+```
+Also with -minHigh to 5, default 10 I don't know if this matters unless the model is doAsso 2
+
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401.bamlist \
+-yBin $HOME/ds-lh/phenos/1401.phenos -minMapQ 20 -minQ 20 -minInd 62 -doAsso 1 -GL 1 -minCount 2 -minHigh 5 \
+-out $HOME/ds-lh/outputs/1401/assoc05-mincount-minhigh -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1401/assoc05-mincount-minhigh.out 2> outputs/1401/assoc05-mincount-minhigh.err &
+```
+
+## Changing model -doAsso 2, 4,5,6?
+Pretty sure doAsso 2 requires -doPost 1, reducing minCount to 2....
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1401.bamlist \
+-yBin $HOME/ds-lh/phenos/1401.phenos -minMapQ 20 -minQ 20 -minInd 62 -doAsso 2 -GL 1 -minCount 2 -doPost 1 \
+-out $HOME/ds-lh/outputs/1401/assoc05-doasso02 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1401/assoc05-doasso2.out 2> outputs/1401/assoc05-doasso2.err &
+```
+
+```{r}
+dfdo2<-read_tsv(file="outputs/1401/assoc05-doasso02.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>% # -log10 of p>1 results in a negative value, which seems nonsensical and doesn't affect adjp much
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(adjp = p.adjust(p, method = "bonferroni"))
+
+arrange(dfdo2, -log10p) %>% head()
+```
+

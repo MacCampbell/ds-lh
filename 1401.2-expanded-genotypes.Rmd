@@ -1,7 +1,7 @@
 ---
-title: '1401.1-genotypes'
+title: "1401.2-expanded-genotypes"
 author: "Mac Campbell"
-date: "5/19/2021"
+date: "5/20/2021"
 output: html_document
 ---
 
@@ -19,59 +19,56 @@ library(class)
 library(gmodels)
 ```
 
-82 inds, 74 @ 90 thresh
-## Calling genotypes
+## Expanding genotypes for KNN
+Using `1401-75.bamlist`   
+123 * .9      
+[1] 110.7     
 
 ```{sh, eval=FALSE}
-srun -t 36:00:00 -p high --mem=32G --nodes=2 $HOME/angsd/angsd -minInd 74 -nthreads 12 \
--bam $HOME/ds-lh/bamlists/1401.bamlist -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
--out $HOME/ds-lh/outputs/1401/snps \
+srun -t 36:00:00 -p high --mem=32G --nodes=2 $HOME/angsd/angsd -minInd 111 -nthreads 24 \
+-bam $HOME/ds-lh/bamlists/1401-75.bamlist -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+-out $HOME/ds-lh/outputs/1401/snps-75 \
 -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
--doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/1401/snps.out 2> outputs/1401/snps.err &
+-doGeno 2 -doPost 1 -postCutoff 0.9 -doPlink 2  > outputs/1401/snps-75.out 2> outputs/1401/snps-75.err &
 ```
 
 Locally:
 ```{sh, eval=FALSE}
- plink --tped snps.tped --tfam snps.tfam --recodeA --out snps-geno-numeric --allow-extra-chr --noweb
+ plink --tped snps-75.tped --tfam snps-75.tfam --recodeA --out snps-75-geno-numeric --allow-extra-chr --noweb
 ```
 
-12119 variants and 82 people pass filters and QC.
+9074 variants and 123 people pass filters and QC.
 
 ```{r, eval=FALSE}
-snps <- read_delim("outputs/1401/snps-geno-numeric.raw", delim = " ") %>%
+snps <- read_delim("outputs/1401/snps-75-geno-numeric.raw", delim = " ") %>%
   select(-IID, -SEX, -PAT, -MAT, -PHENOTYPE)
-save(snps, file="outputs/1401/snps.rda")
+save(snps, file="outputs/1401/snps-75.rda")
 ```
 
 ```{r}
-load("outputs/1401/snps.rda")
-top2013<-read_csv("outputs/1401/top-2013.csv")
+load("outputs/1401/snps-75.rda")
+top75<-read_csv("outputs/1401/top-75.csv")
 ```
 
-## Append Phenos and Tidy
 
+Combine    
 ```{r}
-
-phenos <- select(top2013, Sample_ID, new_classes, Phenotype)
+phenos <- select(top75, new_classes, Phenotype)
 data<-bind_cols(phenos,snps)
 cols<-phenos %>% mutate(Color=ifelse(Phenotype=="MIG","blue","red")) %>% 
   mutate(ClassColor  = ifelse(new_classes=="FWR1","red",
                               ifelse(new_classes=="FWM1", "blue",
                                      ifelse(new_classes=="FWM2", "lightblue", "grey"))))
-
-
-data<-bind_cols(phenos,snps)
 ```
-
 
 Find overlap between association and SNPS
 ```{r}
-df<-read_tsv(file="outputs/1401/assoc05.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+df<-read_tsv(file="outputs/1401/assoc05-75.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
   filter(log10p>=0 & log10p != "Inf") %>% # -log10 of p>1 results in a negative value, which seems nonsensical and doesn't affect adjp much
   mutate(p = dchisq(LRT, df=1)) %>%
   mutate(adjp = p.adjust(p, method = "bonferroni"))
 
-tops<-arrange(df, -log10p) %>% head(n=50) %>% mutate(Site=paste0(Chromosome,"_",Position))
+tops<-arrange(df, -log10p) %>% head(n=200) %>% mutate(Site=paste0(Chromosome,"_",Position))
 ```
 have to wonder if the major is the same. Subset SNPs to tops.    
 ```{r}
@@ -91,50 +88,21 @@ snpsites<-snps[colnames(snps) %in% c(tops2$value)]
 ```
 
 ```{r}
-pdf("outputs/1401/heatmap-reordered-sites-with-inds.pdf", width=14, height=14)
-heatmap.2(as.matrix(snpsites), labRow=phenos$Sample_ID, cexRow = 0.6,
+heatmap.2(as.matrix(snpsites), labRow="", cexRow = 0.6,
+          labCol="",
           colRow = cols$ClassColor, RowSideColors = cols$ClassColor,
           trace="none",
-          key=FALSE, dendrogram=c("row"), srtCol=45, margins = c(10,10), na.color="grey50",
-          col=viridis,
-          hclustfun = function(x) hclust(x,method = 'ward.D'))
-dev.off()
-
-```
-
-```{r}
-pdf("outputs/1401/heatmap-reordered-sites.pdf", width=11, height=14)
-
-
-heatmap.2(as.matrix(snpsites), labRow="", cexRow = 0.6,
-          labCol="",
-          colRow = cols$Color, RowSideColors = cols$Color,
-          trace="none",
           key=FALSE, dendrogram=c("row"), srtCol=45, margins = c(10,5), na.color=viridis(1),
           col=viridis,
           hclustfun = function(x) hclust(x,method = 'ward.D'))
 
-dev.off()
-
-pdf("outputs/1401/heatmap-sites.pdf", width=11, height=14)
-
-
-heatmap.2(as.matrix(snpsites), labRow="", cexRow = 0.6,
-          labCol="",
-          colRow = cols$Color, RowSideColors = cols$Color,
-          trace="none",
-          key=FALSE, dendrogram=c("row"), srtCol=45, margins = c(10,5), na.color=viridis(1),
-          col=viridis, Colv = FALSE,
-          hclustfun = function(x) hclust(x,method = 'ward.D'))
-
-dev.off()
 ```
 
 ## KNN
-22 x 82 seems like too few
+
 
 ```{r}
-tops100<-arrange(df, -log10p) %>% head(n=50) %>% mutate(Site=paste0(Chromosome,"_",Position))
+tops100<-arrange(df, -log10p) %>% head(n=100) %>% mutate(Site=paste0(Chromosome,"_",Position))
 options100<-as_tibble(colnames(data)) %>% filter(!(value %in% c("Pheno","Phenotype","FID"))) %>%
   separate(value, sep="_",  into=c("Chrom","Position","Base"), remove=FALSE) %>% mutate(Site=paste0(Chrom,"_",Position)) 
 options100$Position <-as.numeric(options100$Position)
@@ -153,9 +121,9 @@ trans<-snpsites100
 trans<-na.roughfix(trans)
 
 #get 41 random samples
-randos<-floor(runif(41, min=1, max=82))
+randos<-floor(runif(61, min=1, max=123))
 smeltTrain<-trans[randos,]
-train.labels<-phenos$Phenotype[randos]
+train.labels<-phenos$new_classes[randos]
 phenos$Phenotype[randos] %>% as_tibble() %>% group_by(value) %>% summarize(Count=n())
 ```
 
@@ -185,7 +153,7 @@ pred <- knn(train = smeltTrain, test = trans, cl = train.labels, k=fit$finalMode
 
 phenos$OptKPred<-pred
 phenos$OptKProb<-round(attr(pred, "prob"),2)
-CrossTable(x = phenos$Phenotype, y = phenos$OptKPred, prop.chisq=FALSE)
+CrossTable(x = phenos$new_classes, y = phenos$OptKPred, prop.chisq=FALSE)
 ```
 
 How is the model?
@@ -197,17 +165,17 @@ ggplot(fit) +
   ylim(min(fit$results$Accuracy-.1),0.95)+
   theme_classic()
 
-ggsave("outputs/1401/training.jpeg")
+ggsave("outputs/1401/training-75.jpeg")
 ```
 
 ```{r}
 res<-knn(train=smeltTrain, test=trans, cl=train.labels, k=fit$finalModel$k)
-CrossTable(x = phenos$Phenotype, y = res, prop.chisq=FALSE)
+CrossTable(x = phenos$new_classes, y = res, prop.chisq=FALSE)
 ```
 
 Visualize:
 ```{r}
-cross<-as_tibble(phenos$Phenotype) %>% rename(Phenotype=value) %>% mutate(Otolith=Phenotype)
+cross<-as_tibble(phenos$new_classes) %>% rename(Phenotype=value) %>% mutate(Otolith=Phenotype)
 cross$Prediction<-res
 summary<-cross %>% group_by(Otolith, Prediction) %>% summarize(Count=n())
 
@@ -221,6 +189,5 @@ ggplot(summary, aes(Otolith, Prediction)) +
   theme(axis.text = element_text(face="bold")) +
   ggtitle("Cross Table of Phenotype and Predicted Phenotype")+
   theme(plot.title = element_text(hjust=0.5, size=16,face="bold"))
-ggsave("outputs/1401/cross-table.jpeg")
+ggsave("outputs/1401/cross-table-75.jpeg")
 ```
-
