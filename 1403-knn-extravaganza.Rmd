@@ -1,0 +1,21 @@
+---
+title: "1403-knn-extravanganza"
+author: "Mac Campbell"
+date: "May 27, 2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## Picking the most accurate
+We need to sample different individuals and down SNPs to find the most accurate set of SNPs for assignment.
+
+100 x sets of individuals (maybe 100 resamplings), find average best K
+use 1 through 100 of the best SNPs and compare
+
+Maybe create the same 100 individual sets to apply across 1 -> 100 SNPs
+
+I could make a function and lapply? Each entry would be an individual/phenotype for training.
+

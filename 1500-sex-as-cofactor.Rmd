@@ -1,0 +1,53 @@
+---
+title: "1500-sex-as-cofactor"
+author: "Mac Campbell"
+date: "6/24/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+```{r}
+library(tidyverse)
+```
+
+## This is what you think it is
+
+```{r}
+bams<-read_tsv("bamlists/1401-75.bamlist", col_names=c("Bams")) 
+bams$`Sequence File Name`<-gsub("bams/|_R1.sort.flt.bam","", bams$Bams)
+phenos<-read_tsv("phenos/1401-75.phenos", col_names=c("Phenos"))
+premeta<-bind_cols(bams,phenos)
+meta<-read_csv("metadata/genetics-oto-intersect-06032021_JH.csv")
+meta2<-left_join(premeta,meta)
+```
+
+Now I need to drop individuals without sex id. Jim says:    
+1 = male      
+2= female     
+0= can't tell, if the fish had spawned and not residual gonad tissue was available the fish is scored a 0    
+
+```{r}
+meta3<-meta2 %>% filter(sex != 0)
+
+meta3 %>% group_by(aggregated_new_classes, sex) %>% summarize(Count=n())
+```
+
+Create bamlist, phenos, cov
+
+```{r}
+write_tsv(meta3 %>% select(Bams), "bamlists/1500.bamlist", col_names = FALSE)
+write_tsv(meta3 %>% select(Phenos), "phenos/1500.phenos", col_names = FALSE)
+write_tsv(meta3 %>% select(sex), "phenos/1500.cov", col_names = FALSE)
+```
+
+### Analyze
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME/ds-lh/bamlists/1500.bamlist \
+-yBin $HOME/ds-lh/phenos/1500.phenos -cov $HOME/ds-lh/phenos/1500.cov -minMapQ 20 -minQ 20 -minInd 91 -doAsso 1 -GL 1 \
+-out $HOME/ds-lh/outputs/1500/assoc05-75 -doMajorMinor 1 -doMaf 1 -SNP_pval 1e-6 \
+-ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+> outputs/1500/assoc05-75.out 2> outputs/1500/assoc05-75.err &
+```

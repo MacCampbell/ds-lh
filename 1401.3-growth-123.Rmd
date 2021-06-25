@@ -213,3 +213,62 @@ srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24  -bam $HOME
 -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa -rf $HOME/genomes/hypomesus-20210204/large-contigs.txt \
 > outputs/1401/assoc75-fwr.out 2> outputs/1401/assoc75-fwr.err &
 ```
+
+
+```{r}
+migd<-read_tsv(file="outputs/1401/assoc75-mig.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+  group_by(Chromosome) %>%
+  mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+  mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+arrange(migd, -log10p) %>% head()
+```
+
+```{r}
+migd2 <- filter(migd, grepl("lg",Chromosome))
+highestmig<-migd2 %>% top_frac(.01,log10p) 
+
+ggplot(migd2) +
+  geom_hline(yintercept = -log10(0.05/nrow(df)), col="black", alpha=0.5) +
+  geom_hline(yintercept= -log10(alpha), col="black", linetype=2, alpha=0.5) +
+  geom_point(aes(x=Position, y=log10p), alpha=0.5, fill="darkgrey") +
+  geom_point(data=highestmig, aes(x=Position,y=log10p), pch=21, fill="cyan") +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~Chromosome, ncol=10, scales="free_x") +
+#  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+```
+
+```{r}
+fwrd<-read_tsv(file="outputs/1401/assoc75-fwr.lrt0.gz") %>% mutate(log10p = -log10(dchisq(LRT, df = 1))) %>%
+  filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(p = dchisq(LRT, df=1)) %>%
+  mutate(bonfer = p.adjust(p, method = "bonferroni")) %>% 
+  mutate(BHfdr = p.adjust(p, method = "BH")) %>%
+  group_by(Chromosome) %>%
+  mutate(adjpchrom = p.adjust(p, method = "bonferroni")) %>%
+  mutate(BHfdrchrom = p.adjust(p, method = "BH"))
+
+arrange(fwrd, -log10p) %>% head()
+```
+
+```{r}
+fwrd2 <- filter(fwrd, grepl("lg",Chromosome))
+highestfwr<-fwrd2 %>% top_frac(.01,log10p) 
+
+ggplot(fwrd2) +
+  geom_hline(yintercept = -log10(0.05/nrow(df)), col="black", alpha=0.5) +
+  geom_hline(yintercept= -log10(alpha), col="black", linetype=2, alpha=0.5) +
+  geom_point(aes(x=Position, y=log10p), alpha=0.5, fill="darkgrey") +
+  geom_point(data=highestfwr, aes(x=Position,y=log10p), pch=21, fill="cyan") +
+  theme_bw() +
+  theme(panel.grid=element_blank()) +
+  facet_wrap(.~Chromosome, ncol=10, scales="free_x") +
+#  scale_color_gradient(low="darkgrey", high="cyan") +
+  theme(axis.text.x = element_blank(), axis.ticks.x = element_blank())
+```

@@ -126,6 +126,41 @@ ggplot() +
   geom_point(data=outliers, aes(x=MDS1, y=MDS2), color="blue") 
 ```
 
+I should be able to figure out which chroms the windows are on.
+```{r}
+sites<-rownames(snp) %>% as_tibble() %>% filter(value != "FID")
+
+length <- nrow(sites)
+sel<-seq(1, length, 20)
+starts <- sites[sel,] %>% rename(WindowStart=value)
+
+sel2<-seq(20,length,20)
+ends <-sites[sel2,] %>% rename(WindowEnd=value)
+
+head(sel)
+head(sel2)
+```
+
+```{r}
+wins<-starts %>% separate(WindowStart, into=c("Chromosome","Position", "Geno"), remove=FALSE)
+wins<-wins[1:558,]
+wine<-ends %>% separate(WindowEnd, into=c("ChromosomeEnd","PositionEnd", "GenoEnd"), remove=FALSE)
+
+windows<-bind_cols(wins,wine)
+```
+
+We expect 558 windows based on mds.coords
+```{r}
+outwin<-windows[outl_ind,] %>% bind_cols(mds.coords[outl_ind,]) %>% filter(Chromosome == ChromosomeEnd) %>% group_by(Chromosome) %>% summarize(Count=n())
+outwin  
+
+outwin2<-windows[outl_ind2,] %>% bind_cols(mds.coords[outl_ind2,]) %>% filter(Chromosome == ChromosomeEnd) %>% group_by(Chromosome) %>% summarize(Count=n())
+outwin2
+
+outwin3<-windows[outl_ind3,] %>% bind_cols(mds.coords[outl_ind3,]) %>% filter(Chromosome == ChromosomeEnd) %>% group_by(Chromosome) %>% summarize(Count=n())
+outwin3
+```
+
 ## Split up by chrom...
 
 ```{r}
@@ -399,4 +434,44 @@ ggplot(df, aes(x=Axis1, y=Axis2)) +
   geom_point(aes(fill=population), pch=21, alpha=0.9) +
   theme_bw() +
   theme(panel.grid = element_blank())
+```
+
+
+
+### Finally, MD3
+
+```{r}
+p3<-MDS3 %>% mutate(Index=1:n())
+
+out3 <- boxplot.stats(p3$Value3)$out
+out_ind3 <- which(p3$Value3 %in% c(out3))
+out_ind3
+outliers3<-p3[out_ind3,]
+
+#places to put labels based on index
+chroms<-p3 %>% group_by(chrom) %>% mutate(Start=min(Index), Stop=max(Index)) %>% select(chrom,Start,Stop) %>% unique() %>% 
+  mutate(Position=round((Start+Stop)/2))
+
+#Make enough colors
+nb.cols <- nrow(chroms)
+mycolors <- colorRampPalette(brewer.pal(8, "Set1"))(nb.cols)
+
+
+#Hmm.. I should be able to include a bunch of rectangles to offset chroms
+ggplot(p3) +
+  geom_rect(data=chroms, aes(xmin=Start, xmax=Stop, ymin=min(p3$Value3), ymax=max(p3$Value3)), fill=mycolors, alpha=0.25) +
+  geom_point(data=p3, aes(x=Index, y=Value3, color=chrom), alpha=0.75, cex=0.5) +
+  geom_point(data=outliers3, aes(x=Index, y=Value3), color="black", cex=0.5) +
+  theme_bw() +
+  scale_x_continuous(breaks=chroms$Position, labels=chroms$chrom) +
+  theme(axis.text.x = element_text(angle=45, hjust = 1, face="bold", size=6)) +
+  theme(legend.title = element_blank()) +
+  theme(panel.grid = element_blank()) +
+  theme(legend.position = "none") +
+  scale_color_manual(values=mycolors) +
+  ylab("MDS3") +
+  xlab("Chromosome")
+
+ggsave("outputs/1201/dsm-manhattan-mds3.jpg", width=10, height=4)
+
 ```

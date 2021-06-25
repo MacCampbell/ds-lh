@@ -1,0 +1,224 @@
+---
+title: "1402-snpr"
+author: "Mac Campbell"
+date: "5/25/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning=FALSE, message=FALSE)
+```
+
+## SNPr does GWAS and rf
+```{r}
+library(tidyverse)
+library(snpR)
+library(gplots)
+library(viridis)
+library(caret)
+library(randomForest)
+library(class)
+library(gmodels)
+
+```
+
+We should call SNPs for our 123 dataset:
+```{sh, eval=FALSE}
+srun -p high -t 48:00:00 --mem=32G --nodes=2 $HOME/angsd/angsd -P 24 \
+  -bam $HOME/ds-lh/bamlists/1401-75.bamlist -minInd 110 \
+  -out $HOME/ds-lh/outputs/1402/123-genos \
+  -minMaf 0.05 -minMapQ 20 -minQ 20 -GL 1 -doMajorMinor 1 -doMaf 1 \
+  -ref $HOME/genomes/hypomesus-20210204/Hyp_tra_F_20210204.fa \
+  -rf  $HOME/genomes/hypomesus-20210204/large-contigs.txt \
+  -SNP_pval 1e-6 -doGeno 4 -doPost 1 -postCutoff 0.95 > outputs/1402/1401-75.out 2> outputs/1402/1401-75.err &
+```
+
+Import data
+
+```{r}
+genos<-read_tsv("outputs/1402/123-genos.geno.gz", col_names=FALSE)
+#Remove last empty col
+genos<-genos[1:ncol(genos)-1]
+
+genos$X1<-as.factor(genos$X1)
+```
+
+Do our highest occuring SNPS show up in genos?
+```{r}
+genos %>% filter(X1=="lg02") %>% filter(X2 > 11230300) %>% filter(X2 < 11230500)
+```
+
+Note, going back and recalling genos allowing more messing data... Previously -minInd 117, now 110.
+
+Import meta:
+```{r}
+sample_meta<-read_csv("outputs/1401/top-75.csv") %>% rename(FL=`Fork Length`, FileName=`Sequence File Name`)
+sample_meta$PhenotypeFactor<-as.factor(sample_meta$Phenotype)
+```
+
+Separate snp-meta from snps
+```{r}
+# grab our sample metadata
+snp_meta <- genos[,1:2]
+
+# import, remember to remove metadata from the genotypes!
+my.dat <- import.snpR.data(genos[,-c(1:2)], 
+                           snp.meta = snp_meta, 
+                           sample.meta = sample_meta)
+```
+
+Calculate PCA for sanity
+```{r}
+p <- plot_clusters(my.dat, facets = c("Phenotype"))
+```
+
+View
+```{r}
+p$plots$pca
+```
+
+Seems fine!
+
+## GWAS
+```{r}
+asso<-calc_association(my.dat,response="Phenotype", method="chisq")
+out<-get.snpR.stats(asso)
+head(out)
+```
+
+Plot with snpR
+
+Variables we can use:
+```{r}
+colnames(get.snpR.stats(asso))
+```
+
+Doesn't work....
+```{r, eval=FALSE}
+pm <- plot_manhattan(asso, plot_var = c("chi_p_Phenotype"), chr = "X1", log.p=T)
+pm$plot
+```
+
+Convert:
+
+```{r}
+out %>% mutate(log10p = -log10(chi_p_Phenotype)) %>% 
+   filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(bonfer = p.adjust(chi_p_Phenotype, method = "bonferroni")) %>% 
+                 arrange(-chi_stat_Phenotype) %>% head(n=20)
+```
+
+My own threshold:
+```{r}
+variants<-nrow(out)
+#Number of expected variants
+num<-50
+p.T = num/variants 
+prior.odds = p.T/(1-p.T) 
+pwr = 1 #upper bound for power --> upper bound for alpha 
+post.odds = 0.95/(1-0.95) 
+alpha = prior.odds*pwr/post.odds 
+paste(signif(alpha,3)) 
+-log10(alpha)
+```
+
+## Random Forest
+```{r}
+rf <- run_random_forest(my.dat, response = "PhenotypeFactor", num.trees = 1000)
+```
+
+Check out how it did:
+```{r}
+rf$models$.base_.base$model
+```
+ I tried this a few different ways and still ended up with 50%
+ 
+ ## KNN
+ 
+```{r}
+numeric<-format_snps(my.dat, output="sn") %>% as_tibble() %>%
+  mutate(Sites=paste0(X1,"-",X2))
+tops<-out %>% mutate(log10p = -log10(chi_p_Phenotype)) %>% 
+   filter(log10p>=0 & log10p != "Inf") %>%
+  mutate(bonfer = p.adjust(chi_p_Phenotype, method = "bonferroni")) %>% 
+                 arrange(-chi_stat_Phenotype) %>% head(n=30) %>%
+  mutate(Sites=paste0(X1,"-",X2))
+nums<-numeric %>% filter(Sites %in% tops$Sites) %>% select(-Sites)
+numericgenos<-nums[,-c(1:2)]
+```
+ 
+```{r}
+
+trans<-transpose(numericgenos)
+trans<-na.roughfix(trans)
+
+#get 123/2 random samples
+randos<-floor(runif(62, min=1, max=123))
+smeltTrain<-trans[randos,]
+train.labels<-sample_meta$PhenotypeFactor[randos]
+sample_meta$PhenotypeFactor[randos] %>% as_tibble() %>% group_by(value) %>% summarize(Count=n())
+```
+ 
+ Running knn
+```{r}
+trControl <- trainControl(method = "repeatedcv",
+                          number = 100,
+                          repeats = 10)
+
+training<-smeltTrain
+training$Type<-train.labels
+
+fit <- train(Type ~ .,
+             method     = "knn",
+             tuneGrid   = expand.grid(k = seq(from=1, to=27, by=2)),
+             trControl  = trControl,
+             metric     = "Accuracy",
+             data       = training)
+
+```
+
+
+
+```{r}
+pred <- knn(train = smeltTrain, test = trans, cl = train.labels, k=fit$finalModel$k, prob = TRUE)
+
+sample_meta$OptKPred<-pred
+sample_meta$OptKProb<-round(attr(pred, "prob"),2)
+CrossTable(x = sample_meta$Phenotype, y = sample_meta$OptKPred, prop.chisq=FALSE)
+```
+
+How is the model?
+
+```{r}
+fit$finalModel$k
+max(fit$results$Accuracy)
+ggplot(fit) +
+  ylim(min(fit$results$Accuracy-.1),0.95)+
+  theme_classic()
+
+ggsave("outputs/1401/training.jpeg")
+```
+
+```{r}
+res<-knn(train=smeltTrain, test=trans, cl=train.labels, k=fit$finalModel$k)
+CrossTable(x = sample_meta$Phenotype, y = res, prop.chisq=FALSE)
+```
+
+Visualize:
+```{r}
+cross<-as_tibble(sample_meta$Phenotype) %>% rename(Phenotype=value) %>% mutate(Otolith=Phenotype)
+cross$Prediction<-res
+summary<-cross %>% group_by(Otolith, Prediction) %>% summarize(Count=n())
+
+ggplot(summary, aes(Otolith, Prediction)) + 
+  geom_point(aes(size = Count), colour = "darkgreen") +
+  theme_classic() +
+  geom_text(aes(label=Count), color="white", face="bold", size=6)+
+  scale_size_continuous(range=c(10,30)) +
+  theme(legend.position = "none")+
+  theme(axis.title = element_text(face="bold", size=14)) +
+  theme(axis.text = element_text(face="bold")) +
+  ggtitle("Cross Table of Phenotype and Predicted Phenotype")+
+  theme(plot.title = element_text(hjust=0.5, size=16,face="bold"))
+ggsave("outputs/1402/cross-table-123.jpeg")
+```
